@@ -36,16 +36,15 @@ ChatBuffer::ChatBuffer(u32 scrollback):
 {
 	if (m_scrollback == 0)
 		m_scrollback = 1;
-	m_empty_formatted_line.first = true;
+	m_empty_formatted_line.flags |= CHATLINE_FIRST;
 }
 
 ChatBuffer::~ChatBuffer()
 {
 }
 
-void ChatBuffer::addLine(std::wstring name, std::wstring text)
+void ChatBuffer::addLine(const ChatLine &line)
 {
-	ChatLine line(name, text);
 	m_unformatted.push_back(line);
 
 	if (m_rows > 0)
@@ -107,10 +106,10 @@ void ChatBuffer::deleteOldest(u32 count)
 		// keep m_formatted in sync
 		if (del_formatted < m_formatted.size())
 		{
-			assert(m_formatted[del_formatted].first);
+			assert(m_formatted[del_formatted].flags & CHATLINE_FIRST);
 			++del_formatted;
 			while (del_formatted < m_formatted.size() &&
-					!m_formatted[del_formatted].first)
+					(m_formatted[del_formatted].flags & CHATLINE_FIRST) == 0)
 				++del_formatted;
 		}
 
@@ -162,7 +161,7 @@ void ChatBuffer::reformat(u32 cols, u32 rows)
 		{
 			for (s32 i = 0; i < m_scroll; ++i)
 			{
-				if (m_formatted[i].first)
+				if (m_formatted[i].flags & CHATLINE_FIRST)
 					++restore_scroll_unformatted;
 			}
 		}
@@ -247,15 +246,14 @@ u32 ChatBuffer::formatChatLine(const ChatLine& line, u32 cols,
 	{
 		temp_frag.text = L"<";
 		temp_frag.column = 0;
-		//temp_frag.bold = 0;
 		next_frags.push_back(temp_frag);
 		temp_frag.text = line.name;
 		temp_frag.column = 0;
-		//temp_frag.bold = 1;
+		temp_frag.is_name = true;
 		next_frags.push_back(temp_frag);
+		temp_frag.is_name = false;
 		temp_frag.text = L"> ";
 		temp_frag.column = 0;
-		//temp_frag.bold = 0;
 		next_frags.push_back(temp_frag);
 	}
 
@@ -276,7 +274,7 @@ u32 ChatBuffer::formatChatLine(const ChatLine& line, u32 cols,
 		hanging_indentation = 2;
 	}
 
-	next_line.first = true;
+	next_line.flags = line.flags | CHATLINE_FIRST;
 	bool text_processing = false;
 
 	// Produce fragments and layout them into lines
@@ -300,7 +298,6 @@ u32 ChatBuffer::formatChatLine(const ChatLine& line, u32 cols,
 				// So split it up
 				temp_frag.text = frag.text.substr(0, cols - out_column);
 				temp_frag.column = out_column;
-				//temp_frag.bold = frag.bold;
 				next_line.fragments.push_back(temp_frag);
 				frag.text = frag.text.substr(cols - out_column);
 				out_column = cols;
@@ -311,7 +308,7 @@ u32 ChatBuffer::formatChatLine(const ChatLine& line, u32 cols,
 				destination.push_back(next_line);
 				num_added++;
 				next_line.fragments.clear();
-				next_line.first = false;
+				next_line.flags &= ~CHATLINE_FIRST;
 
 				out_column = text_processing ? hanging_indentation : 0;
 			}
@@ -339,7 +336,6 @@ u32 ChatBuffer::formatChatLine(const ChatLine& line, u32 cols,
 
 			temp_frag.text = line.text.substr(in_pos, frag_length);
 			temp_frag.column = 0;
-			//temp_frag.bold = 0;
 			next_frags.push_back(temp_frag);
 			in_pos += frag_length;
 			text_processing = true;
@@ -657,7 +653,9 @@ void ChatPrompt::clampView()
 ChatBackend::ChatBackend():
 	m_console_buffer(500),
 	m_recent_buffer(6),
-	m_prompt(L"]", 500)
+	m_recent_filtered_buffer(6),
+	m_prompt(L"]", 500),
+	m_playername("")
 {
 }
 
@@ -667,13 +665,25 @@ ChatBackend::~ChatBackend()
 
 void ChatBackend::addMessage(std::wstring name, std::wstring text)
 {
+	// get ChatLine flags
+	u32 flags = 0;
+	if (name.empty())
+		flags |= CHATLINE_SERVER;
+	if (name == narrow_to_wide(m_playername))
+		flags |= CHATLINE_SELF;
+	if (text.find(narrow_to_wide(m_playername)) != std::wstring::npos)
+		flags |= CHATLINE_HIGHLIGHT;
+
 	// Note: A message may consist of multiple lines, for example the MOTD.
 	WStrfnd fnd(text);
 	while (!fnd.atend())
 	{
-		std::wstring line = fnd.next(L"\n");
-		m_console_buffer.addLine(name, line);
-		m_recent_buffer.addLine(name, line);
+		std::wstring textpart = fnd.next(L"\n");
+		ChatLine line(name, textpart, flags);
+		m_console_buffer.addLine(line);
+		m_recent_buffer.addLine(line);
+		if (flags != 0)
+			m_recent_filtered_buffer.addLine(line);
 	}
 }
 
@@ -705,17 +715,21 @@ ChatBuffer& ChatBackend::getConsoleBuffer()
 	return m_console_buffer;
 }
 
-ChatBuffer& ChatBackend::getRecentBuffer()
+ChatBuffer& ChatBackend::getRecentBuffer(bool filtered)
 {
-	return m_recent_buffer;
+	if (filtered)
+		return m_recent_filtered_buffer;
+	else
+		return m_recent_buffer;
 }
 
-std::wstring ChatBackend::getRecentChat()
+std::wstring ChatBackend::getRecentChat(bool filtered)
 {
+	ChatBuffer &buffer = getRecentBuffer(filtered);
 	std::wostringstream stream;
-	for (u32 i = 0; i < m_recent_buffer.getLineCount(); ++i)
+	for (u32 i = 0; i < buffer.getLineCount(); ++i)
 	{
-		const ChatLine& line = m_recent_buffer.getLine(i);
+		const ChatLine& line = buffer.getLine(i);
 		if (i != 0)
 			stream << L"\n";
 		if (!line.name.empty())
@@ -743,12 +757,18 @@ void ChatBackend::reformat(u32 cols, u32 rows)
 void ChatBackend::clearRecentChat()
 {
 	m_recent_buffer.clear();
+	m_recent_filtered_buffer.clear();
 }
 
 void ChatBackend::step(float dtime)
 {
+	float lifetime = 60.0;  // how long to show recent messages?
+
 	m_recent_buffer.step(dtime);
-	m_recent_buffer.deleteByAge(60.0);
+	m_recent_buffer.deleteByAge(lifetime);
+
+	m_recent_filtered_buffer.step(dtime);
+	m_recent_filtered_buffer.deleteByAge(lifetime);
 
 	// no need to age messages in anything but m_recent_buffer
 }
@@ -766,4 +786,9 @@ void ChatBackend::scrollPageDown()
 void ChatBackend::scrollPageUp()
 {
 	m_console_buffer.scroll(-m_console_buffer.getRows());
+}
+
+void ChatBackend::setPlayerName(std::string playername)
+{
+	m_playername = playername;
 }

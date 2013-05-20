@@ -1325,6 +1325,8 @@ void the_game(
 			false, true);
 	// Remove stale "recent" chat messages from previous connections
 	chat_backend.clearRecentChat();
+	// Inform chat backend about player name
+	chat_backend.setPlayerName(playername);
 	// Chat backend and console
 	GUIChatConsole *gui_chat_console = new GUIChatConsole(guienv, guienv->getRootGUIElement(), -1, &chat_backend, &client);
 	
@@ -1378,6 +1380,7 @@ void the_game(
 
 	bool show_hud = true;
 	bool show_chat = true;
+	bool show_chat_filtered = false;
 	bool force_fog_off = false;
 	f32 fog_range = 100*BS;
 	bool disable_camera_update = false;
@@ -1836,11 +1839,25 @@ void the_game(
 		}
 		else if(input->wasKeyDown(getKeySetting("keymap_toggle_chat")))
 		{
-			show_chat = !show_chat;
-			if(show_chat)
+			// Initial / 3x toggle: Show chat
+			// 1x toggle: Show filtered chat
+			// 2x toggle: Hide chat
+			if(!show_chat)
+			{
+				show_chat = true;
+				show_chat_filtered = false;
 				statustext = L"Chat shown";
+			}
+			else if(!show_chat_filtered)
+			{
+				show_chat_filtered = true;
+				statustext = L"Chat filtered";
+			}
 			else
+			{
+				show_chat = false;
 				statustext = L"Chat hidden";
+			}
 			statustext_time = 0;
 		}
 		else if(input->wasKeyDown(getKeySetting("keymap_toggle_force_fog_off")))
@@ -3040,8 +3057,10 @@ void the_game(
 			chat_backend.step(dtime);
 
 			// Display all messages in a static text element
-			u32 recent_chat_count = chat_backend.getRecentBuffer().getLineCount();
-			std::wstring recent_chat = chat_backend.getRecentChat();
+			u32 recent_chat_count =
+				chat_backend.getRecentBuffer(show_chat_filtered).getLineCount();
+			std::wstring recent_chat =
+				chat_backend.getRecentChat(show_chat_filtered);
 			guitext_chat->setText(recent_chat.c_str());
 
 			// Update gui element size and position

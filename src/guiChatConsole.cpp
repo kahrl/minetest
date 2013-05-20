@@ -324,10 +324,19 @@ void GUIChatConsole::drawText()
 			s32 x = (fragment.column + 1) * m_fontsize.X;
 			core::rect<s32> destrect(
 				x, y, x + m_fontsize.X * fragment.text.size(), y + m_fontsize.Y);
+			video::SColor color(255, 255, 255, 255);
+
+			if (fragment.is_name) {
+				if (line.flags & CHATLINE_SELF)
+					color.setRed(0);
+				else if (line.flags & CHATLINE_HIGHLIGHT)
+					color.setBlue(0);
+			}
+
 			m_font->draw(
 				fragment.text.c_str(),
 				destrect,
-				video::SColor(255, 255, 255, 255),
+				color,
 				false,
 				false,
 				&AbsoluteClippingRect);
