@@ -110,6 +110,8 @@ public:
 	
 	void updateCameraOffset(v3s16 camera_offset);
 
+	bool m_clear_hardware_buffer;  // FIXME this should be private
+
 private:
 	scene::SMesh *m_mesh;
 	IGameDef *m_gamedef;
