@@ -25,12 +25,15 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "settings.h"
 #include "mesh.h"
 #include <ICameraSceneNode.h>
+#include <ILightSceneNode.h>
+#include <IMeshSceneNode.h>
 #include "log.h"
 #include "gamedef.h"
 #include "util/string.h"
 #include "util/container.h"
 #include "util/thread.h"
 #include "util/numeric.h"
+#include "util/timetaker.h"
 
 /*
 	A cache from texture name to texture path
@@ -421,6 +424,13 @@ private:
 	bool m_setting_trilinear_filter;
 	bool m_setting_bilinear_filter;
 	bool m_setting_anisotropic_filter;
+
+	// Scene used by generateTextureFromMesh
+	scene::ISceneManager *m_rtt_smgr;
+	scene::IMeshSceneNode *m_rtt_meshnode;
+	scene::ICameraSceneNode *m_rtt_camera;
+	scene::ILightSceneNode *m_rtt_light;
+
 };
 
 IWritableTextureSource* createTextureSource(IrrlichtDevice *device)
@@ -447,6 +457,11 @@ TextureSource::TextureSource(IrrlichtDevice *device):
 	m_setting_trilinear_filter = g_settings->getBool("trilinear_filter");
 	m_setting_bilinear_filter = g_settings->getBool("bilinear_filter");
 	m_setting_anisotropic_filter = g_settings->getBool("anisotropic_filter");
+
+	m_rtt_smgr = NULL;
+	m_rtt_meshnode = NULL;
+	m_rtt_camera = NULL;
+	m_rtt_light = NULL;
 }
 
 TextureSource::~TextureSource()
@@ -481,6 +496,13 @@ TextureSource::~TextureSource()
 
 	infostream << "~TextureSource() "<< textures_before << "/"
 			<< driver->getTextureCount() << std::endl;
+
+	if (m_rtt_smgr)
+	{
+		// NOTE: The scene nodes should not be dropped, otherwise
+		//       m_rtt_smgr->drop() segfaults
+		m_rtt_smgr->drop();
+	}
 }
 
 u32 TextureSource::getTextureId(const std::string &name)
@@ -566,6 +588,9 @@ u32 parseImageTransform(const std::string& s);
 core::dimension2d<u32> imageTransformDimension(u32 transform, core::dimension2d<u32> dim);
 // Apply transform to image data
 void imageTransform(u32 transform, video::IImage *src, video::IImage *dst);
+// Render solid cube
+void inventorycube(video::IImage *top, video::IImage *left,
+		video::IImage *right, video::IImage *dst);
 
 /*
 	This method generates all the textures
@@ -859,48 +884,69 @@ video::ITexture* TextureSource::generateTextureFromMesh(
 		return NULL;
 	}
 
-	// Set render target
-	driver->setRenderTarget(rtt, false, true, video::SColor(0,0,0,0));
+	// Build the scene (first time only)
+	if(!m_rtt_smgr)
+	{
+		// Get a scene manager
+		scene::ISceneManager *smgr_main = m_device->getSceneManager();
+		assert(smgr_main);
+		m_rtt_smgr = smgr_main->createNewSceneManager();
+		assert(m_rtt_smgr);
 
-	// Get a scene manager
-	scene::ISceneManager *smgr_main = m_device->getSceneManager();
-	assert(smgr_main);
-	scene::ISceneManager *smgr = smgr_main->createNewSceneManager();
-	assert(smgr);
+		// Add some scene nodes
+		m_rtt_meshnode = m_rtt_smgr->addMeshSceneNode(NULL, NULL, -1,
+				v3f(0,0,0), v3f(0,0,0), v3f(1,1,1), true);
+		assert(m_rtt_meshnode);
+		m_rtt_camera = m_rtt_smgr->addCameraSceneNode();
+		assert(m_rtt_camera);
+		m_rtt_light = m_rtt_smgr->addLightSceneNode();
+		assert(m_rtt_light);
+	}
 
-	scene::IMeshSceneNode* meshnode = smgr->addMeshSceneNode(params.mesh, NULL, -1, v3f(0,0,0), v3f(0,0,0), v3f(1,1,1), true);
-	meshnode->setMaterialFlag(video::EMF_LIGHTING, true);
-	meshnode->setMaterialFlag(video::EMF_ANTI_ALIASING, true);
-	meshnode->setMaterialFlag(video::EMF_TRILINEAR_FILTER, m_setting_trilinear_filter);
-	meshnode->setMaterialFlag(video::EMF_BILINEAR_FILTER, m_setting_bilinear_filter);
-	meshnode->setMaterialFlag(video::EMF_ANISOTROPIC_FILTER, m_setting_anisotropic_filter);
+	m_rtt_meshnode->setMesh(params.mesh);
+	m_rtt_meshnode->setMaterialFlag(video::EMF_LIGHTING, true);
+	m_rtt_meshnode->setMaterialFlag(video::EMF_ANTI_ALIASING, true);
+	m_rtt_meshnode->setMaterialFlag(video::EMF_TRILINEAR_FILTER, m_setting_trilinear_filter);
+	m_rtt_meshnode->setMaterialFlag(video::EMF_BILINEAR_FILTER, m_setting_bilinear_filter);
+	m_rtt_meshnode->setMaterialFlag(video::EMF_ANISOTROPIC_FILTER, m_setting_anisotropic_filter);
 
-	scene::ICameraSceneNode* camera = smgr->addCameraSceneNode(0,
-			params.camera_position, params.camera_lookat);
+	m_rtt_camera->setPosition(params.camera_position);
+	m_rtt_camera->setTarget(params.camera_lookat);
 	// second parameter of setProjectionMatrix (isOrthogonal) is ignored
-	camera->setProjectionMatrix(params.camera_projection_matrix, false);
+	m_rtt_camera->setProjectionMatrix(params.camera_projection_matrix, false);
 
-	smgr->setAmbientLight(params.ambient_light);
-	smgr->addLightSceneNode(0,
-			params.light_position,
-			params.light_color,
-			params.light_radius);
+	m_rtt_smgr->setAmbientLight(params.ambient_light);
+
+	m_rtt_light->setPosition(params.light_position);
+
+	video::SLight light_data;
+	light_data.DiffuseColor = params.light_color;
+	light_data.SpecularColor = params.light_color.getInterpolated(
+			video::SColor(255,255,255,255), 0.7f);
+	light_data.Radius = params.light_radius;
+	light_data.Attenuation.set(0.f, 1.f/params.light_radius, 0.f);
+	m_rtt_light->setLightData(light_data);
+
+	// Set render target
+	TimeTaker tt1("RTT set render target");
+	driver->setRenderTarget(rtt, false, true, video::SColor(0,0,0,0));
+	tt1.stop();
 
 	// Render scene
+	TimeTaker tt2a("RTT begin scene");
 	driver->beginScene(true, true, video::SColor(0,0,0,0));
-	smgr->drawAll();
+	tt2a.stop();
+	TimeTaker tt2b("RTT render scene");
+	m_rtt_smgr->drawAll();
+	tt2b.stop();
+	TimeTaker tt2c("RTT end scene");
 	driver->endScene();
-
-	// NOTE: The scene nodes should not be dropped, otherwise
-	//       smgr->drop() segfaults
-	/*cube->drop();
-	camera->drop();
-	light->drop();*/
-	// Drop scene manager
-	smgr->drop();
+	tt2c.stop();
 
 	// Unset render target
-	driver->setRenderTarget(0, false, true, 0);
+	TimeTaker tt3("RTT unset render target");
+	driver->setRenderTarget(0, false, false, 0);
+	tt3.stop();
 
 	if(params.delete_texture_on_shutdown)
 		m_texture_trash.push_back(rtt);
@@ -1284,81 +1330,21 @@ bool TextureSource::generateImage(std::string part_of_name, video::IImage *& bas
 			video::IImage *img_right =
 				generateImageFromScratch(imagename_right);
 			assert(img_top && img_left && img_right);
-
-			// Create textures from images
-			video::ITexture *texture_top = driver->addTexture(
-					(imagename_top + "__temp__").c_str(), img_top);
-			video::ITexture *texture_left = driver->addTexture(
-					(imagename_left + "__temp__").c_str(), img_left);
-			video::ITexture *texture_right = driver->addTexture(
-					(imagename_right + "__temp__").c_str(), img_right);
-			assert(texture_top && texture_left && texture_right);
-
+			
+			// Generate inventorycube
+			core::dimension2d<u32> dim(64, 64);
+			video::IImage *image = driver->createImage(
+					video::ECF_A8R8G8B8, dim);
+			assert(image);
+			inventorycube(img_top, img_left, img_right, image);
+			if(baseimg)
+				baseimg->drop();
+			baseimg = image;
+			
 			// Drop images
 			img_top->drop();
 			img_left->drop();
 			img_right->drop();
-			
-			/*
-				Draw a cube mesh into a render target texture
-			*/
-			scene::IMesh* cube = createCubeMesh(v3f(1, 1, 1));
-			setMeshColor(cube, video::SColor(255, 255, 255, 255));
-			cube->getMeshBuffer(0)->getMaterial().setTexture(0, texture_top);
-			cube->getMeshBuffer(1)->getMaterial().setTexture(0, texture_top);
-			cube->getMeshBuffer(2)->getMaterial().setTexture(0, texture_right);
-			cube->getMeshBuffer(3)->getMaterial().setTexture(0, texture_right);
-			cube->getMeshBuffer(4)->getMaterial().setTexture(0, texture_left);
-			cube->getMeshBuffer(5)->getMaterial().setTexture(0, texture_left);
-
-			TextureFromMeshParams params;
-			params.mesh = cube;
-			params.dim.set(64, 64);
-			params.rtt_texture_name = part_of_name + "_RTT";
-			// We will delete the rtt texture ourselves
-			params.delete_texture_on_shutdown = false;
-			params.camera_position.set(0, 1.0, -1.5);
-			params.camera_position.rotateXZBy(45);
-			params.camera_lookat.set(0, 0, 0);
-			// Set orthogonal projection
-			params.camera_projection_matrix.buildProjectionMatrixOrthoLH(
-					1.65, 1.65, 0, 100);
-
-			params.ambient_light.set(1.0, 0.2, 0.2, 0.2);
-			params.light_position.set(10, 100, -50);
-			params.light_color.set(1.0, 0.5, 0.5, 0.5);
-			params.light_radius = 1000;
-			
-			video::ITexture *rtt = generateTextureFromMesh(params);
-			
-			// Drop mesh
-			cube->drop();
-
-			// Free textures of images
-			driver->removeTexture(texture_top);
-			driver->removeTexture(texture_left);
-			driver->removeTexture(texture_right);
-			
-			if(rtt == NULL)
-			{
-				baseimg = generateImageFromScratch(imagename_top);
-				return true;
-			}
-
-			// Create image of render target
-			video::IImage *image = driver->createImage(rtt, v2s32(0,0), params.dim);
-			assert(image);
-
-			// Cleanup texture
-			driver->removeTexture(rtt);
-
-			baseimg = driver->createImage(video::ECF_A8R8G8B8, params.dim);
-
-			if(image)
-			{
-				image->copyTo(baseimg);
-				image->drop();
-			}
 		}
 		/*
 			[lowpart:percent:filename
@@ -1689,3 +1675,132 @@ void imageTransform(u32 transform, video::IImage *src, video::IImage *dst)
 		dst->setPixel(dx,dy,c);
 	}
 }
+
+void inventorycube(video::IImage *top, video::IImage *left,
+		video::IImage *right, video::IImage *dst)
+{
+	TimeTaker timetaker("inventorycube", NULL, PRECISION_NANO);
+	if(top == NULL || left == NULL || right == NULL || dst == NULL)
+		return;
+	
+	core::dimension2d<u32> topdim = top->getDimension();
+	core::dimension2d<u32> leftdim = left->getDimension();
+	core::dimension2d<u32> rightdim = right->getDimension();
+	core::dimension2d<u32> dstdim = dst->getDimension();
+
+	assert(dst->getColorFormat() == video::ECF_A8R8G8B8);
+
+	u32 *data = (u32*) dst->lock();
+	if(data == NULL)
+		return;
+
+	u32 w = dstdim.Width;
+	u32 h = dstdim.Height;
+
+	// Calculate projection-to-view transformation
+	// (orthogonal, left-handed)
+
+	f32 pw = 1.65;  // width of view volume
+	f32 ph = 1.65;  // height of view volume
+	v2f pscale(pw / w, -ph / h);
+	v2f ptrans(-pw / 2, ph / 2);
+
+	// Calculate view-to-world transformation (left-handed)
+
+	v3f position(0, 1.0, -1.5);  // camera position
+	position.rotateXZBy(45);     // ^
+	v3f target(0, 0, 0);         // camera look-at point
+	v3f upVector(0, 1, 0);       // camera up vector
+
+	v3f zaxis = target - position;
+	zaxis.normalize();
+
+	v3f xaxis = upVector.crossProduct(zaxis);
+	xaxis.normalize();
+
+	v3f yaxis = zaxis.crossProduct(xaxis);
+
+	// Calculate projection-to-world transformation
+
+	core::matrix4 pt;  // (part of a) matrix
+
+	pt[0]  = pscale.X*xaxis.X;
+	pt[1]  = pscale.X*xaxis.Y;
+	pt[2]  = pscale.X*xaxis.Z;
+
+	pt[4]  = pscale.Y*yaxis.X;
+	pt[5]  = pscale.Y*yaxis.Y;
+	pt[6]  = pscale.Y*yaxis.Z;
+
+	pt[8]  = zaxis.X;
+	pt[9]  = zaxis.Y;
+	pt[10] = zaxis.Z;
+
+	pt[12] = ptrans.X * xaxis.X + ptrans.Y * yaxis.X + position.X;
+	pt[13] = ptrans.X * xaxis.Y + ptrans.Y * yaxis.Y + position.Y;
+	pt[14] = ptrans.X * xaxis.Z + ptrans.Y * yaxis.Z + position.Z;
+
+	// Calculate coefficients needed to calculate pz
+	// (z in projection space)
+	// This works because the shape of the unit cube is known
+
+	assert(fabs(pt[8]) > 1e-6);
+	assert(fabs(pt[9]) > 1e-6);
+	assert(fabs(pt[10]) > 1e-6);
+
+	// world coordinates: (wx, wy, wz)
+	// top face: wy = 0.5
+	v3f pzcoeff_top = v3f(-pt[1], -pt[5], 0.5 - pt[13]) / pt[9];
+	// left face: wz = -0.5
+	v3f pzcoeff_left = v3f(-pt[2], -pt[6], -0.5 - pt[14]) / pt[10];
+	// right face: wx = 0.5
+	v3f pzcoeff_right = v3f(-pt[0], -pt[4], 0.5 - pt[12]) / pt[8];
+
+
+	u32 *ptr = data;
+
+	for(u32 py = 0; py < h; ++py)
+	for(u32 px = 0; px < w; ++px)
+	{
+		v3f projectionPos(px, py, 1);
+		f32 pz, wx, wy, wz;
+
+		pz = projectionPos.dotProduct(pzcoeff_top);
+		wx = px*pt[0] + py*pt[4] + pz*pt[8] + pt[12];
+		wz = px*pt[2] + py*pt[6] + pz*pt[10] + pt[14];
+		if(wx*wx < 0.25 && wz*wz < 0.25){ // |wx|, |wz| < 0.5?
+			s32 top_px = topdim.Width  * (wx+0.5);
+			s32 top_py = topdim.Height * (wz+0.5);
+			video::SColor pixel = top->getPixel(top_px, top_py);
+			*ptr++ = pixel.color;
+			continue;
+		}
+
+		pz = projectionPos.dotProduct(pzcoeff_left);
+		wx = px*pt[0] + py*pt[4] + pz*pt[8] + pt[12];
+		wy = px*pt[1] + py*pt[5] + pz*pt[9] + pt[13];
+		if(wx*wx < 0.25 && wy*wy < 0.25){ // |wx|, |wy| < 0.5?
+			s32 left_px = leftdim.Width  * (wx+0.5);
+			s32 left_py = leftdim.Height * (wy+0.5);
+			video::SColor pixel = left->getPixel(left_px, left_py);
+			*ptr++ = pixel.color;
+			continue;
+		}
+
+		pz = projectionPos.dotProduct(pzcoeff_right);
+		wy = px*pt[1] + py*pt[5] + pz*pt[9] + pt[13];
+		wz = px*pt[2] + py*pt[6] + pz*pt[10] + pt[14];
+		if(wy*wy < 0.25 && wz*wz < 0.25){ // |wy|, |wz| < 0.5?
+			s32 right_px = rightdim.Width  * (wy+0.5);
+			s32 right_py = rightdim.Height * (wz+0.5);
+			video::SColor pixel = right->getPixel(right_px, right_py);
+			*ptr++ = pixel.color;
+			continue;
+		}
+
+		*ptr++ = 0;  // transparent
+	}
+
+	timetaker.stop();
+}
+

@@ -38,6 +38,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include <map>
 #include <set>
 
+#include "util/timetaker.h"
+
 /*
 	ItemDefinition
 */
@@ -309,6 +311,110 @@ public:
 	}
 #ifndef SERVER
 public:
+	scene::IMesh* createNodeMesh(
+			const std::string &name,
+			IGameDef *gamedef) const
+	{
+		scene::IMesh *node_mesh = NULL;
+
+		/*
+			Get node properties
+		*/
+		INodeDefManager *nodedef = gamedef->getNodeDefManager();
+		content_t id = nodedef->getId(name);
+		const ContentFeatures &f = nodedef->get(id);
+
+		if(f.drawtype == NDT_NORMAL){
+			node_mesh = createCubeMesh(v3f(1.0, 1.0, 1.0));
+			for(s32 j = 0; j < 6; ++j){
+				node_mesh->getMeshBuffer(j)->getMaterial()
+					.setTexture(0, f.tiles[j].texture);
+			}
+		}
+		else{
+			u8 param1 = 0;
+			if(f.param_type == CPT_LIGHT)
+				param1 = 0xee;
+
+			/*
+				Make a mesh from the node
+			*/
+			MeshMakeData mesh_make_data(gamedef);
+			MapNode mesh_make_node(id, param1, 0);
+			mesh_make_data.fillSingleNode(&mesh_make_node);
+			MapBlockMesh mapblock_mesh(&mesh_make_data);
+
+			node_mesh = mapblock_mesh.getMesh();
+			assert(node_mesh);
+			node_mesh->grab();
+
+			video::SColor c(255, 255, 255, 255);
+			if(g_settings->getBool("enable_shaders"))
+				c = MapBlock_LightColor(255, 0xffff, decode_light(f.light_source));
+			setMeshColor(node_mesh, c);
+
+			/*
+				Scale and translate the mesh so it's a unit cube
+				centered on the origin
+			*/
+			scaleMesh(node_mesh, v3f(1.0/BS, 1.0/BS, 1.0/BS));
+			translateMesh(node_mesh, v3f(-1.0, -1.0, -1.0));
+
+			// no way reference count can be smaller than 2 in this place!
+			assert(node_mesh->getReferenceCount() >= 2);
+		}
+
+		return node_mesh;
+	}
+	video::ITexture *createInventoryTextureForNode(
+			const std::string &name,
+			IGameDef *gamedef,
+			scene::IMesh *node_mesh) const
+	{
+		const ContentFeatures &f = gamedef->ndef()->get(name);
+
+		ITextureSource *tsrc = gamedef->getTextureSource();
+
+		if(f.drawtype == NDT_NORMAL){
+			std::string texturename_top =
+				tsrc->getTextureName(f.tiles[0].texture_id);
+			std::string texturename_left =
+				tsrc->getTextureName(f.tiles[5].texture_id);
+			std::string texturename_right =
+				tsrc->getTextureName(f.tiles[2].texture_id);
+			str_replace_char(texturename_top, '^', '&');
+			str_replace_char(texturename_left, '^', '&');
+			str_replace_char(texturename_right, '^', '&');
+			std::string texturename =
+				"^[inventorycube{" + texturename_top + "{"
+				+ texturename_left + "{" + texturename_right;
+			return tsrc->getTexture(texturename);
+		}
+		else{
+			TextureFromMeshParams params;
+			params.mesh = node_mesh;
+			params.dim.set(64, 64);
+			params.rtt_texture_name = "INVENTORY_" + name + "_RTT";
+			params.delete_texture_on_shutdown = true;
+			params.camera_position.set(0, 1.0, -1.5);
+			params.camera_position.rotateXZBy(45);
+			params.camera_lookat.set(0, 0, 0);
+			// Set orthogonal projection
+			params.camera_projection_matrix.buildProjectionMatrixOrthoLH(
+					1.65, 1.65, 0, 100);
+			params.ambient_light.set(1.0, 0.2, 0.2, 0.2);
+			params.light_position.set(10, 100, -50);
+			params.light_color.set(1.0, 0.5, 0.5, 0.5);
+			params.light_radius = 1000;
+
+			video::ITexture *rtt = tsrc->generateTextureFromMesh(params);
+			if(rtt)
+				return rtt;
+
+			// render-to-target didn't work
+			return tsrc->getTexture(f.tiledef[0].name);
+		}
+	}
 	ClientCached* createClientCachedDirect(const std::string &name,
 			IGameDef *gamedef) const
 	{
@@ -325,7 +431,6 @@ public:
 			return cc;
 
 		ITextureSource *tsrc = gamedef->getTextureSource();
-		INodeDefManager *nodedef = gamedef->getNodeDefManager();
 		IrrlichtDevice *device = tsrc->getDevice();
 		video::IVideoDriver *driver = device->getVideoDriver();
 		const ItemDefinition *def = &get(name);
@@ -377,84 +482,32 @@ public:
 
 		if(need_node_mesh)
 		{
-			/*
-				Get node properties
-			*/
-			content_t id = nodedef->getId(def->name);
-			const ContentFeatures &f = nodedef->get(id);
-
-			u8 param1 = 0;
-			if(f.param_type == CPT_LIGHT)
-				param1 = 0xee;
-
-			/*
-				Make a mesh from the node
-			*/
-			MeshMakeData mesh_make_data(gamedef);
-			MapNode mesh_make_node(id, param1, 0);
-			mesh_make_data.fillSingleNode(&mesh_make_node);
-			MapBlockMesh mapblock_mesh(&mesh_make_data);
-
-			scene::IMesh *node_mesh = mapblock_mesh.getMesh();
-			assert(node_mesh);
-			video::SColor c(255, 255, 255, 255);
-			if(g_settings->getBool("enable_shaders"))
-				c = MapBlock_LightColor(255, 0xffff, decode_light(f.light_source));
-			setMeshColor(node_mesh, c);
-
-			/*
-				Scale and translate the mesh so it's a unit cube
-				centered on the origin
-			*/
-			scaleMesh(node_mesh, v3f(1.0/BS, 1.0/BS, 1.0/BS));
-			translateMesh(node_mesh, v3f(-1.0, -1.0, -1.0));
+			TimeTaker tt1("createNodeMesh");
+			scene::IMesh *node_mesh = createNodeMesh(name, gamedef);
+			tt1.stop();
 
 			/*
 				Draw node mesh into a render target texture
 			*/
+			TimeTaker tt2("create inventory_texture");
 			if(cc->inventory_texture == NULL)
 			{
-				TextureFromMeshParams params;
-				params.mesh = node_mesh;
-				params.dim.set(64, 64);
-				params.rtt_texture_name = "INVENTORY_"
-					+ def->name + "_RTT";
-				params.delete_texture_on_shutdown = true;
-				params.camera_position.set(0, 1.0, -1.5);
-				params.camera_position.rotateXZBy(45);
-				params.camera_lookat.set(0, 0, 0);
-				// Set orthogonal projection
-				params.camera_projection_matrix.buildProjectionMatrixOrthoLH(
-						1.65, 1.65, 0, 100);
-				params.ambient_light.set(1.0, 0.2, 0.2, 0.2);
-				params.light_position.set(10, 100, -50);
-				params.light_color.set(1.0, 0.5, 0.5, 0.5);
-				params.light_radius = 1000;
-
 				cc->inventory_texture =
-					tsrc->generateTextureFromMesh(params);
-
-				// render-to-target didn't work
-				if(cc->inventory_texture == NULL)
-				{
-					cc->inventory_texture =
-						tsrc->getTexture(f.tiledef[0].name);
-				}
+					createInventoryTextureForNode(name,
+							gamedef, node_mesh);
 			}
+			tt2.stop();
 
 			/*
 				Use the node mesh as the wield mesh
 			*/
 
+			TimeTaker tt3("create wield_mesh");
 			// Scale to proper wield mesh proportions
 			scaleMesh(node_mesh, v3f(30.0, 30.0, 30.0)
 					* def->wield_scale);
-
 			cc->wield_mesh = node_mesh;
-			cc->wield_mesh->grab();
-
-			//no way reference count can be smaller than 2 in this place!
-			assert(cc->wield_mesh->getReferenceCount() >= 2);
+			tt3.stop();
 		}
 
 		// Put in cache
