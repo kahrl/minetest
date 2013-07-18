@@ -23,6 +23,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "main.h" // for g_settings
 #include "filesys.h"
 #include "settings.h"
+#include "rasterize.h"
 #include "mesh.h"
 #include <ICameraSceneNode.h>
 #include <ILightSceneNode.h>
@@ -33,7 +34,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "util/container.h"
 #include "util/thread.h"
 #include "util/numeric.h"
-#include "util/timetaker.h"
 
 /*
 	A cache from texture name to texture path
@@ -588,9 +588,6 @@ u32 parseImageTransform(const std::string& s);
 core::dimension2d<u32> imageTransformDimension(u32 transform, core::dimension2d<u32> dim);
 // Apply transform to image data
 void imageTransform(u32 transform, video::IImage *src, video::IImage *dst);
-// Render solid cube
-void inventorycube(video::IImage *top, video::IImage *left,
-		video::IImage *right, video::IImage *dst);
 
 /*
 	This method generates all the textures
@@ -928,25 +925,15 @@ video::ITexture* TextureSource::generateTextureFromMesh(
 	m_rtt_light->setLightData(light_data);
 
 	// Set render target
-	TimeTaker tt1("RTT set render target");
 	driver->setRenderTarget(rtt, false, true, video::SColor(0,0,0,0));
-	tt1.stop();
 
 	// Render scene
-	TimeTaker tt2a("RTT begin scene");
 	driver->beginScene(true, true, video::SColor(0,0,0,0));
-	tt2a.stop();
-	TimeTaker tt2b("RTT render scene");
 	m_rtt_smgr->drawAll();
-	tt2b.stop();
-	TimeTaker tt2c("RTT end scene");
 	driver->endScene();
-	tt2c.stop();
 
 	// Unset render target
-	TimeTaker tt3("RTT unset render target");
 	driver->setRenderTarget(0, false, false, 0);
-	tt3.stop();
 
 	if(params.delete_texture_on_shutdown)
 		m_texture_trash.push_back(rtt);
@@ -1675,132 +1662,3 @@ void imageTransform(u32 transform, video::IImage *src, video::IImage *dst)
 		dst->setPixel(dx,dy,c);
 	}
 }
-
-void inventorycube(video::IImage *top, video::IImage *left,
-		video::IImage *right, video::IImage *dst)
-{
-	TimeTaker timetaker("inventorycube", NULL, PRECISION_NANO);
-	if(top == NULL || left == NULL || right == NULL || dst == NULL)
-		return;
-	
-	core::dimension2d<u32> topdim = top->getDimension();
-	core::dimension2d<u32> leftdim = left->getDimension();
-	core::dimension2d<u32> rightdim = right->getDimension();
-	core::dimension2d<u32> dstdim = dst->getDimension();
-
-	assert(dst->getColorFormat() == video::ECF_A8R8G8B8);
-
-	u32 *data = (u32*) dst->lock();
-	if(data == NULL)
-		return;
-
-	u32 w = dstdim.Width;
-	u32 h = dstdim.Height;
-
-	// Calculate projection-to-view transformation
-	// (orthogonal, left-handed)
-
-	f32 pw = 1.65;  // width of view volume
-	f32 ph = 1.65;  // height of view volume
-	v2f pscale(pw / w, -ph / h);
-	v2f ptrans(-pw / 2, ph / 2);
-
-	// Calculate view-to-world transformation (left-handed)
-
-	v3f position(0, 1.0, -1.5);  // camera position
-	position.rotateXZBy(45);     // ^
-	v3f target(0, 0, 0);         // camera look-at point
-	v3f upVector(0, 1, 0);       // camera up vector
-
-	v3f zaxis = target - position;
-	zaxis.normalize();
-
-	v3f xaxis = upVector.crossProduct(zaxis);
-	xaxis.normalize();
-
-	v3f yaxis = zaxis.crossProduct(xaxis);
-
-	// Calculate projection-to-world transformation
-
-	core::matrix4 pt;  // (part of a) matrix
-
-	pt[0]  = pscale.X*xaxis.X;
-	pt[1]  = pscale.X*xaxis.Y;
-	pt[2]  = pscale.X*xaxis.Z;
-
-	pt[4]  = pscale.Y*yaxis.X;
-	pt[5]  = pscale.Y*yaxis.Y;
-	pt[6]  = pscale.Y*yaxis.Z;
-
-	pt[8]  = zaxis.X;
-	pt[9]  = zaxis.Y;
-	pt[10] = zaxis.Z;
-
-	pt[12] = ptrans.X * xaxis.X + ptrans.Y * yaxis.X + position.X;
-	pt[13] = ptrans.X * xaxis.Y + ptrans.Y * yaxis.Y + position.Y;
-	pt[14] = ptrans.X * xaxis.Z + ptrans.Y * yaxis.Z + position.Z;
-
-	// Calculate coefficients needed to calculate pz
-	// (z in projection space)
-	// This works because the shape of the unit cube is known
-
-	assert(fabs(pt[8]) > 1e-6);
-	assert(fabs(pt[9]) > 1e-6);
-	assert(fabs(pt[10]) > 1e-6);
-
-	// world coordinates: (wx, wy, wz)
-	// top face: wy = 0.5
-	v3f pzcoeff_top = v3f(-pt[1], -pt[5], 0.5 - pt[13]) / pt[9];
-	// left face: wz = -0.5
-	v3f pzcoeff_left = v3f(-pt[2], -pt[6], -0.5 - pt[14]) / pt[10];
-	// right face: wx = 0.5
-	v3f pzcoeff_right = v3f(-pt[0], -pt[4], 0.5 - pt[12]) / pt[8];
-
-
-	u32 *ptr = data;
-
-	for(u32 py = 0; py < h; ++py)
-	for(u32 px = 0; px < w; ++px)
-	{
-		v3f projectionPos(px, py, 1);
-		f32 pz, wx, wy, wz;
-
-		pz = projectionPos.dotProduct(pzcoeff_top);
-		wx = px*pt[0] + py*pt[4] + pz*pt[8] + pt[12];
-		wz = px*pt[2] + py*pt[6] + pz*pt[10] + pt[14];
-		if(wx*wx < 0.25 && wz*wz < 0.25){ // |wx|, |wz| < 0.5?
-			s32 top_px = topdim.Width  * (wx+0.5);
-			s32 top_py = topdim.Height * (wz+0.5);
-			video::SColor pixel = top->getPixel(top_px, top_py);
-			*ptr++ = pixel.color;
-			continue;
-		}
-
-		pz = projectionPos.dotProduct(pzcoeff_left);
-		wx = px*pt[0] + py*pt[4] + pz*pt[8] + pt[12];
-		wy = px*pt[1] + py*pt[5] + pz*pt[9] + pt[13];
-		if(wx*wx < 0.25 && wy*wy < 0.25){ // |wx|, |wy| < 0.5?
-			s32 left_px = leftdim.Width  * (wx+0.5);
-			s32 left_py = leftdim.Height * (wy+0.5);
-			video::SColor pixel = left->getPixel(left_px, left_py);
-			*ptr++ = pixel.color;
-			continue;
-		}
-
-		pz = projectionPos.dotProduct(pzcoeff_right);
-		wy = px*pt[1] + py*pt[5] + pz*pt[9] + pt[13];
-		wz = px*pt[2] + py*pt[6] + pz*pt[10] + pt[14];
-		if(wy*wy < 0.25 && wz*wz < 0.25){ // |wy|, |wz| < 0.5?
-			s32 right_px = rightdim.Width  * (wy+0.5);
-			s32 right_py = rightdim.Height * (wz+0.5);
-			video::SColor pixel = right->getPixel(right_px, right_py);
-			*ptr++ = pixel.color;
-			continue;
-		}
-
-		*ptr++ = 0;  // transparent
-	}
-
-	timetaker.stop();
-}
-

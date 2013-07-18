@@ -303,6 +303,7 @@ set(minetest_SRCS
 	content_cso.cpp
 	content_mapblock.cpp
 	content_cao.cpp
+	rasterize.cpp
 	mesh.cpp
 	mapblock_mesh.cpp
 	keycode.cpp

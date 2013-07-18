@@ -43,6 +43,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "util/serialize.h"
 #include "noise.h" // PseudoRandom used for random data for compression
 #include "clientserver.h" // LATEST_PROTOCOL_VERSION
+#include "rasterize.h"
 #include <algorithm>
 
 /*
