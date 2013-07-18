@@ -127,13 +127,27 @@ static void draw_convex_polygon(video::IImage *img_src, video::IImage *img_dst,
 	if(pol.vl.size() <= 1 || pol.vr.size() <= 1)
 		return;
 
+	// Get img_dst properties
+
 	core::dimension2d<u32> dstdim = img_dst->getDimension();
 	u32 w = dstdim.Width;
 	u32 h = dstdim.Height;
 
-	//void *data = img_dst->lock();
-	//if(data == NULL)
-	//	return;
+	assert(img_dst->getColorFormat() == video::ECF_A8R8G8B8);
+
+	u32 *dstdata = (u32*) img_dst->lock();
+	if(dstdata == NULL)
+		return;
+
+	// Get img_src properties
+
+	core::dimension2d<u32> srcdim = img_src->getDimension();
+	u32 srcw = srcdim.Width;
+	u32 srch = srcdim.Height;
+
+	u32 *srcdata = NULL;
+	if(img_dst->getColorFormat() == video::ECF_A8R8G8B8)
+		srcdata = (u32*) img_src->lock();
 
 	// Clipping rectangle (clip_ymin is updated dynamically)
 	s32 clip_xmin = 0;
@@ -195,13 +209,45 @@ static void draw_convex_polygon(video::IImage *img_src, video::IImage *img_dst,
 			#if 0
 			dstream<<"Drawing scanline "<<y<<": "<<xmin<<" .. "<<xmax<<std::endl;
 			#endif
-			for(s32 x = xmin; x <= xmax; ++x){
-				// Get source texture coordinates
-				s32 tx = T[0]*x + T[4]*y + T[12] + 0.5;
-				s32 ty = T[1]*x + T[5]*y + T[13] + 0.5;
-				// Get Z-buffer value
-				//s32 z = T[2]*x + T[6] + T[14];
-				img_dst->setPixel(x, y, img_src->getPixel(tx, ty));
+
+			// Get texture transformation in integer form
+			s32 txx = round(T[0] * 65336);
+			s32 txy = round(T[4] * 65536);
+			s32 txw = round((T[12]+0.5) * 65536) + txx*xmin + txy*y;
+			s32 tyx = round(T[1] * 65336);
+			s32 tyy = round(T[5] * 65536);
+			s32 tyw = round((T[13]+0.5) * 65536) + tyx*xmin + tyy*y;
+			//s32 zx = round(T[2] * 65336);
+			//s32 zy = round(T[6] * 65536);
+			//s32 zw = round((T[14]+0.5) * 65536) + zx*xmin + zy*y;
+
+			u32 *dstptr = dstdata + w*y + xmin;
+
+			if(srcdata){
+				// Source is in 32-bit ARGB format.
+				// Use direct pointer access.
+				for(s32 x = xmin; x <= xmax; ++x){
+					// Get source texture coordinates
+					u32 tx = txw >> 16; txw += txx;
+					u32 ty = tyw >> 16; tyw += tyx;
+					// Get Z-buffer value
+					//s32 z = zw >> 16; zw += zx;
+
+					if(tx < srcw && ty < srch)
+						*dstptr++ = srcdata[ty*srcw + tx];
+				}
+			}
+			else{
+				// Source is not 32-bit ARGB. Use getPixel().
+				for(s32 x = xmin; x <= xmax; ++x){
+					// Get source texture coordinates
+					u32 tx = txw >> 16; txw += txx;
+					u32 ty = tyw >> 16; tyw += tyx;
+					// Get Z-buffer value
+					//s32 z = zw >> 16; zw += zx;
+
+					*dstptr++ = img_src->getPixel(tx, ty).color;
+				}
 			}
 		}
 
@@ -214,16 +260,16 @@ static void draw_convex_polygon(video::IImage *img_src, video::IImage *img_dst,
 		jl = jl2;
 		jr = jr2;
 	}
+
+	img_dst->unlock();
+	if(srcdata)
+		img_src->unlock();
 }
 
 static void draw_3d_quad(video::IImage *img_src, video::IImage *img_dst,
 		const video::SColor &color, const core::matrix4 A,
 		v3f w00, v3f w01, v3f w11, v3f w10)
 {
-	//u32 *data = (u32*) img_dst->lock();
-	//if(data == NULL)
-	//	return;
-	
 	v3f p00, p01, p11, p10;
 	A.transformVect(p00, w00);
 	A.transformVect(p01, w01);
@@ -320,12 +366,12 @@ void inventorycube(video::IImage *img_top, video::IImage *img_left,
 	u32 w = dstdim.Width;
 	u32 h = dstdim.Height;
 
-	void *data = img_dst->lock();
-	if(data == NULL)
-		return;
-
 	// Clear destination image
-	memset(data, 0, img_dst->getImageDataSizeInBytes());
+	void *dstdata = img_dst->lock();
+	if(dstdata == NULL)
+		return;
+	memset(dstdata, 0, img_dst->getImageDataSizeInBytes());
+	img_dst->unlock();
 
 	// Calculate projection-to-view transformation
 	// (orthogonal, left-handed)
