@@ -396,7 +396,7 @@ public:
 			params.dim.set(64, 64);
 			params.rtt_texture_name = "INVENTORY_" + name + "_RTT";
 			params.delete_texture_on_shutdown = true;
-			params.camera_position.set(0, 1.0, -1.5);
+			params.camera_position.set(0, 0.8, -1.5);
 			params.camera_position.rotateXZBy(45);
 			params.camera_lookat.set(0, 0, 0);
 			// Set orthogonal projection

@@ -1319,19 +1319,24 @@ bool TextureSource::generateImage(std::string part_of_name, video::IImage *& bas
 			assert(img_top && img_left && img_right);
 			
 			// Generate inventorycube
-			core::dimension2d<u32> dim(64, 64);
-			video::IImage *image = driver->createImage(
-					video::ECF_A8R8G8B8, dim);
-			assert(image);
-			inventorycube(img_top, img_left, img_right, image);
-			if(baseimg)
-				baseimg->drop();
-			baseimg = image;
-			
-			// Drop images
+			video::IImage *img_dst = driver->createImage(
+					video::ECF_A8R8G8B8,
+					core::dimension2d<u32>(256, 256));
+			assert(img_dst);
+			video::IImage *img_dst_scaled = driver->createImage(
+					video::ECF_A8R8G8B8,
+					core::dimension2d<u32>(64, 64));
+			assert(img_dst_scaled);
+			inventorycube(img_top, img_left, img_right, img_dst);
+			img_dst->copyToScaling(img_dst_scaled);
 			img_top->drop();
 			img_left->drop();
 			img_right->drop();
+			img_dst->drop();
+
+			if(baseimg)
+				baseimg->drop();
+			baseimg = img_dst_scaled;
 		}
 		/*
 			[lowpart:percent:filename

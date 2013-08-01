@@ -57,7 +57,8 @@ bool make_convex_polygon(ConvexPolygon &pol, const std::vector<v2f> &vertices)
 	// use cross product to determine sign of angle between
 	// anglevec1 and anglevec2
 	if(anglevec1.X*anglevec2.Y - anglevec1.Y*anglevec2.X > 0){
-		dstream<<"clockwise vertices given"<<std::endl;
+		//verbosestream<<"make_convex_polygon: WARNING: "
+		//	<<"clockwise vertices given"<<std::endl;
 		return false;
 	}
 
@@ -108,20 +109,23 @@ void dump_convex_polygon(const ConvexPolygon &pol)
 	}
 }
 
-static void rasterize_interpolate_x(v2f p1, v2f p2, f32& slope, f32 &intercept)
-{
-	slope = (p2.Y - p1.Y) / (p2.X - p1.X);
-	intercept = p1.Y - p1.X * slope;
-}
-
 static void rasterize_interpolate_y(v2f p1, v2f p2, f32& slope, f32 &intercept)
 {
 	slope = (p2.X - p1.X) / (p2.Y - p1.Y);
 	intercept = p1.X - p1.Y * slope;
 }
 
+static u32 rasterize_light(u32 color, u8 light)
+{
+	u32 blue  = (color         & 255) * light / 255;
+	u32 green = ((color >> 8)  & 255) * light / 255;
+	u32 red   = ((color >> 16) & 255) * light / 255;
+	return (color & 0xff000000)  /* alpha */
+		| (red << 16) | (green << 8) | blue;
+}
+
 static void draw_convex_polygon(video::IImage *img_src, video::IImage *img_dst,
-		const video::SColor &color, const ConvexPolygon &pol,
+		u8 light, const ConvexPolygon &pol,
 		const core::matrix4& T)
 {
 	if(pol.vl.size() <= 1 || pol.vr.size() <= 1)
@@ -195,16 +199,16 @@ static void draw_convex_polygon(video::IImage *img_src, video::IImage *img_dst,
 		dstream<<"pr  = "<<PP2(pr)<<std::endl;
 		dstream<<"pr2 = "<<PP2(pr2)<<std::endl;
 		#endif
-		s32 ymin = MYMAX(floor(pl.Y), clip_ymin);
-		s32 ymax = MYMIN(ceil(pl2.Y), clip_ymax);
+		s32 ymin = MYMAX(round(pl.Y), clip_ymin);
+		s32 ymax = MYMIN(round(pl2.Y), clip_ymax);
 		f32 xmin_slope, xmin_intercept;
 		f32 xmax_slope, xmax_intercept;
 		rasterize_interpolate_y(pl, pl2, xmin_slope, xmin_intercept);
 		rasterize_interpolate_y(pr, pr2, xmax_slope, xmax_intercept);
 		for(s32 y = ymin; y <= ymax; ++y){
-			s32 xmin = MYMAX(floor(xmin_slope*y + xmin_intercept),
+			s32 xmin = MYMAX(ceil(xmin_slope*y + xmin_intercept),
 					clip_xmin);
-			s32 xmax = MYMIN(ceil(xmax_slope*y + xmax_intercept),
+			s32 xmax = MYMIN(floor(xmax_slope*y + xmax_intercept),
 					clip_xmax);
 			#if 0
 			dstream<<"Drawing scanline "<<y<<": "<<xmin<<" .. "<<xmax<<std::endl;
@@ -223,8 +227,9 @@ static void draw_convex_polygon(video::IImage *img_src, video::IImage *img_dst,
 
 			u32 *dstptr = dstdata + w*y + xmin;
 
-			if(srcdata){
-				// Source is in 32-bit ARGB format.
+			if(srcdata && light == 255){
+				// Source is in 32-bit ARGB format
+				// and lighting can be skipped.
 				// Use direct pointer access.
 				for(s32 x = xmin; x <= xmax; ++x){
 					// Get source texture coordinates
@@ -237,8 +242,9 @@ static void draw_convex_polygon(video::IImage *img_src, video::IImage *img_dst,
 						*dstptr++ = srcdata[ty*srcw + tx];
 				}
 			}
-			else{
-				// Source is not 32-bit ARGB. Use getPixel().
+			else if(srcdata){
+				// Source is in 32-bit ARGB format
+				// but multiplication by color is needed.
 				for(s32 x = xmin; x <= xmax; ++x){
 					// Get source texture coordinates
 					u32 tx = txw >> 16; txw += txx;
@@ -246,7 +252,26 @@ static void draw_convex_polygon(video::IImage *img_src, video::IImage *img_dst,
 					// Get Z-buffer value
 					//s32 z = zw >> 16; zw += zx;
 
-					*dstptr++ = img_src->getPixel(tx, ty).color;
+					if(tx < srcw && ty < srch){
+						*dstptr++ = rasterize_light(
+							srcdata[ty*srcw + tx],
+							light);
+					}
+				}
+			}
+			else{
+				// Use the slow method: getPixel().
+				// Assume multiplication by light is needed.
+				for(s32 x = xmin; x <= xmax; ++x){
+					// Get source texture coordinates
+					u32 tx = txw >> 16; txw += txx;
+					u32 ty = tyw >> 16; tyw += tyx;
+					// Get Z-buffer value
+					//s32 z = zw >> 16; zw += zx;
+
+					*dstptr++ = rasterize_light(
+						img_src->getPixel(tx, ty).color,
+						light);
 				}
 			}
 		}
@@ -267,7 +292,7 @@ static void draw_convex_polygon(video::IImage *img_src, video::IImage *img_dst,
 }
 
 static void draw_3d_quad(video::IImage *img_src, video::IImage *img_dst,
-		const video::SColor &color, const core::matrix4 A,
+		u8 light, const core::matrix4 A,
 		v3f w00, v3f w01, v3f w11, v3f w10)
 {
 	v3f p00, p01, p11, p10;
@@ -348,7 +373,7 @@ static void draw_3d_quad(video::IImage *img_src, video::IImage *img_dst,
 	vertices.push_back(v2f(p10.X, p10.Y));
 	make_convex_polygon(pol, vertices);
 	//dump_convex_polygon(pol);
-	draw_convex_polygon(img_src, img_dst, color, pol, T);
+	draw_convex_polygon(img_src, img_dst, light, pol, T);
 }
 
 void inventorycube(video::IImage *img_top, video::IImage *img_left,
@@ -419,21 +444,21 @@ void inventorycube(video::IImage *img_top, video::IImage *img_left,
 	core::matrix4 A;
 	pt.getInverse(A);
 
-	// "Lighting".
-	video::SColor color_top(255, 255, 255, 255);
-	video::SColor color_left(255, 255, 255, 255);
-	video::SColor color_right(255, 255, 255, 255);
+	// Lighting
+	u8 light_top = 255;
+	u8 light_left = 255;
+	u8 light_right = 147;
 
 	//dstream<<"draw_3d_quad(img_top)"<<std::endl;
-	draw_3d_quad(img_top, img_dst, color_top, A,
+	draw_3d_quad(img_top, img_dst, light_top, A,
 			v3f(-0.5,+0.5,+0.5), v3f(-0.5,+0.5,-0.5),
 			v3f(+0.5,+0.5,-0.5), v3f(+0.5,+0.5,+0.5));
 	//dstream<<"draw_3d_quad(img_left)"<<std::endl;
-	draw_3d_quad(img_left, img_dst, color_left, A,
+	draw_3d_quad(img_left, img_dst, light_left, A,
 			v3f(-0.5,+0.5,-0.5), v3f(-0.5,-0.5,-0.5),
 			v3f(+0.5,-0.5,-0.5), v3f(+0.5,+0.5,-0.5));
 	//dstream<<"draw_3d_quad(img_right)"<<std::endl;
-	draw_3d_quad(img_right, img_dst, color_right, A,
+	draw_3d_quad(img_right, img_dst, light_right, A,
 			v3f(+0.5,+0.5,-0.5), v3f(+0.5,-0.5,-0.5),
 			v3f(+0.5,-0.5,+0.5), v3f(+0.5,+0.5,+0.5));
 
