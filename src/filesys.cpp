@@ -34,11 +34,6 @@ namespace fs
 
 #define _WIN32_WINNT 0x0501
 #include <windows.h>
-#include <malloc.h>
-#include <tchar.h>
-#include <wchar.h>
-
-#define BUFSIZE MAX_PATH
 
 std::vector<DirListNode> GetDirListing(std::string pathstring)
 {
@@ -47,40 +42,19 @@ std::vector<DirListNode> GetDirListing(std::string pathstring)
 	WIN32_FIND_DATA FindFileData;
 	HANDLE hFind = INVALID_HANDLE_VALUE;
 	DWORD dwError;
-	LPTSTR DirSpec;
-	INT retval;
 
-	DirSpec = (LPTSTR) malloc (BUFSIZE);
-
-	if( DirSpec == NULL )
-	{
-	  errorstream<<"GetDirListing: Insufficient memory available"<<std::endl;
-	  retval = 1;
-	  goto Cleanup;
-	}
-
-	// Check that the input is not larger than allowed.
-	if (pathstring.size() > (BUFSIZE - 2))
-	{
-	  errorstream<<"GetDirListing: Input directory is too large."<<std::endl;
-	  retval = 3;
-	  goto Cleanup;
-	}
-
-	//_tprintf (TEXT("Target directory is %s.\n"), pathstring.c_str());
-
-	sprintf(DirSpec, "%s", (pathstring + "\\*").c_str());
+	std::string dirSpec = pathstring + "\\*";
 
 	// Find the first file in the directory.
-	hFind = FindFirstFile(DirSpec, &FindFileData);
+	hFind = FindFirstFile(dirSpec.c_str(), &FindFileData);
 
-	if (hFind == INVALID_HANDLE_VALUE)
-	{
-		retval = (-1);
-		goto Cleanup;
-	}
-	else
-	{
+	if (hFind == INVALID_HANDLE_VALUE) {
+		dwError = GetLastError();
+		if (dwError != ERROR_FILE_NOT_FOUND) {
+			errorstream << "GetDirListing: FindFirstFile error."
+			            << " Error is " << dwError << std::endl;
+		}
+	} else {
 		// NOTE:
 		// Be very sure to not include '..' in the results, it will
 		// result in an epic failure when deleting stuff.
@@ -88,12 +62,11 @@ std::vector<DirListNode> GetDirListing(std::string pathstring)
 		DirListNode node;
 		node.name = FindFileData.cFileName;
 		node.dir = FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY;
-		if(node.name != "." && node.name != "..")
+		if (node.name != "." && node.name != "..")
 			listing.push_back(node);
 
 		// List all the other files in the directory.
-		while (FindNextFile(hFind, &FindFileData) != 0)
-		{
+		while (FindNextFile(hFind, &FindFileData) != 0) {
 			DirListNode node;
 			node.name = FindFileData.cFileName;
 			node.dir = FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY;
@@ -103,25 +76,14 @@ std::vector<DirListNode> GetDirListing(std::string pathstring)
 
 		dwError = GetLastError();
 		FindClose(hFind);
-		if (dwError != ERROR_NO_MORE_FILES)
-		{
-			errorstream<<"GetDirListing: FindNextFile error. Error is "
-					<<dwError<<std::endl;
-			retval = (-1);
-			goto Cleanup;
+		if (dwError != ERROR_NO_MORE_FILES) {
+			errorstream << "GetDirListing: FindNextFile error."
+			            << " Error is " << dwError << std::endl;
+			listing.clear();
+			return listing;
 		}
 	}
-	retval  = 0;
 
-Cleanup:
-	free(DirSpec);
-
-	if(retval != 0) listing.clear();
-
-	//for(unsigned int i=0; i<listing.size(); i++){
-	//	infostream<<listing[i].name<<(listing[i].dir?" (dir)":" (file)")<<std::endl;
-	//}
-	
 	return listing;
 }
 
