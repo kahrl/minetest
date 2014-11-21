@@ -42,7 +42,8 @@ static scene::IMesh* createExtrusionMesh(int resolution_x, int resolution_y)
 {
 	const f32 r = 0.5;
 
-	scene::IMeshBuffer *buf = new scene::SMeshBuffer();
+	scene::IMeshBuffer *buf0 = new scene::SMeshBuffer();
+	scene::IMeshBuffer *buf1 = new scene::SMeshBuffer();
 	video::SColor c(255,255,255,255);
 	v3f scale(1.0, 1.0, 0.1);
 
@@ -61,7 +62,7 @@ static scene::IMesh* createExtrusionMesh(int resolution_x, int resolution_y)
 			video::S3DVertex(+r,+r,+r, 0,0,+1, c, 1,0),
 		};
 		u16 indices[12] = {0,1,2,2,3,0,4,5,6,6,7,4};
-		buf->append(vertices, 8, indices, 12);
+		buf0->append(vertices, 8, indices, 12);
 	}
 
 	f32 pixelsize_x = 1 / (f32) resolution_x;
@@ -86,7 +87,7 @@ static scene::IMesh* createExtrusionMesh(int resolution_x, int resolution_y)
 			video::S3DVertex(x1,-r,+r, +1,0,0, c, tex1,1),
 		};
 		u16 indices[12] = {0,1,2,2,3,0,4,5,6,6,7,4};
-		buf->append(vertices, 8, indices, 12);
+		buf0->append(vertices, 8, indices, 12);
 	}
 	for (int i = 0; i < resolution_y; ++i) {
 		f32 pixelpos_y = i * pixelsize_y - 0.5;
@@ -107,13 +108,15 @@ static scene::IMesh* createExtrusionMesh(int resolution_x, int resolution_y)
 			video::S3DVertex(+r,y1,-r, 0,+1,0, c, 1,tex0),
 		};
 		u16 indices[12] = {0,1,2,2,3,0,4,5,6,6,7,4};
-		buf->append(vertices, 8, indices, 12);
+		buf1->append(vertices, 8, indices, 12);
 	}
 
 	// Create mesh object
 	scene::SMesh *mesh = new scene::SMesh();
-	mesh->addMeshBuffer(buf);
-	buf->drop();
+	mesh->addMeshBuffer(buf0);
+	mesh->addMeshBuffer(buf1);
+	buf0->drop();
+	buf1->drop();
 	scaleMesh(mesh, scale);  // also recalculates bounding box
 	return mesh;
 }
@@ -206,6 +209,7 @@ WieldMeshSceneNode::WieldMeshSceneNode(
 	m_bounding_box(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 {
 	m_enable_shaders = g_settings->getBool("enable_shaders");
+	m_anisotropic_filter = g_settings->getBool("anisotropic_filter");
 	m_bilinear_filter = g_settings->getBool("bilinear_filter");
 	m_trilinear_filter = g_settings->getBool("trilinear_filter");
 
@@ -274,22 +278,36 @@ void WieldMeshSceneNode::setExtruded(const std::string &imagename,
 	m_meshnode->setScale(wield_scale * WIELD_SCALE_FACTOR_EXTRUDED);
 
 	// Customize material
-	video::SMaterial &material = m_meshnode->getMaterial(0);
-	material.setTexture(0, texture);
-	material.MaterialType = m_material_type;
-	material.setFlag(video::EMF_BACK_FACE_CULLING, true);
-	// Enable filtering only for high resolution texures
-	if (dim.Width > 32) {
-		material.setFlag(video::EMF_BILINEAR_FILTER, m_bilinear_filter);
-		material.setFlag(video::EMF_TRILINEAR_FILTER, m_trilinear_filter);
-	} else {
-		material.setFlag(video::EMF_BILINEAR_FILTER, false);
-		material.setFlag(video::EMF_TRILINEAR_FILTER, false);
+	for (u32 i = 0; i < m_meshnode->getMaterialCount(); ++i) {
+		video::SMaterial &material = m_meshnode->getMaterial(i);
+		material.setTexture(0, texture);
+		material.MaterialType = m_material_type;
+		material.setFlag(video::EMF_BACK_FACE_CULLING, true);
+		// Enable filtering only for high resolution textures
+		if (dim.Width > 32) {
+			material.setFlag(video::EMF_ANISOTROPIC_FILTER, m_anisotropic_filter);
+			material.setFlag(video::EMF_BILINEAR_FILTER, m_bilinear_filter);
+			material.setFlag(video::EMF_TRILINEAR_FILTER, m_trilinear_filter);
+		} else {
+			material.setFlag(video::EMF_ANISOTROPIC_FILTER, false);
+			material.setFlag(video::EMF_BILINEAR_FILTER, false);
+			material.setFlag(video::EMF_TRILINEAR_FILTER, false);
+		}
+		if (m_enable_shaders)
+			material.setTexture(2, tsrc->getTexture("disable_img.png"));
+
+		// Force anisotropic filtering on (sometimes)
+		// Why that's good: it removes "thin black line" artifacts.
+		//     --> http://i.imgur.com/VZWR0jC.png
+		// Why that's bad: causes blurring on some broken video cards.
+		//     --> https://github.com/minetest/minetest/issues/1844
+		// Therefore we only force anisotropic filtering on for the
+		// problematic portion of the extrusion mesh, which is the
+		// set of slices orthogonal to the Y axis (i.e. material 1).
+		if (i == 1) {
+			material.setFlag(video::EMF_ANISOTROPIC_FILTER, true);
+		}
 	}
-	// anisotropic filtering removes "thin black line" artifacts
-	material.setFlag(video::EMF_ANISOTROPIC_FILTER, true);
-	if (m_enable_shaders) 
-		material.setTexture(2, tsrc->getTexture("disable_img.png"));
 }
 
 void WieldMeshSceneNode::setItem(const ItemStack &item, IGameDef *gamedef)
