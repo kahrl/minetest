@@ -50,5 +50,29 @@ private:
 	u32 *m_result;
 };
 
+#ifdef __linux
+#include <time.h>
+class PreciseCPUTimeTaker
+{
+public:
+	PreciseCPUTimeTaker(const char *name, u64 *result = NULL);
+
+	~PreciseCPUTimeTaker()
+	{
+		stop();
+	}
+
+	u64 stop(bool quiet=false);
+
+	u64 getTimerNs();
+
+private:
+	const char *m_name;
+	struct timespec m_time1;
+	bool m_running;
+	u64 *m_result;
+};
+#endif
+
 #endif
 

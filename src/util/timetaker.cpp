@@ -69,3 +69,40 @@ u32 TimeTaker::getTimerTime()
 	return dtime;
 }
 
+
+#ifdef __linux
+
+PreciseCPUTimeTaker::PreciseCPUTimeTaker(const char *name, u64 *result)
+{
+	m_name = name;
+	m_result = result;
+	m_running = true;
+	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &m_time1);
+}
+
+u64 PreciseCPUTimeTaker::stop(bool quiet)
+{
+	if (m_running) {
+		u64 dtime = getTimerNs();
+		if (m_result != NULL) {
+			(*m_result) += dtime;
+		} else if (!quiet) {
+			infostream << m_name << " took " << dtime << " ns" << std::endl;
+		}
+		m_running = false;
+		return dtime;
+	}
+	return 0;
+}
+
+u64 PreciseCPUTimeTaker::getTimerNs()
+{
+	struct timespec time2;
+	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time2);
+	u64 dtime = 1000000000ULL * (time2.tv_sec - m_time1.tv_sec)
+	          + time2.tv_nsec - m_time1.tv_nsec;
+	return dtime;
+}
+
+
+#endif

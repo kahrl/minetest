@@ -691,6 +691,15 @@ void CNodeDefManager::updateAliases(IItemDefManager *idef)
 					std::make_pair(name, id));
 		}
 	}
+
+	// While we're at it, also resolve node names in ContentFeatures
+	for (size_t i = 0; i < m_content_features.size(); ++i) {
+		ContentFeatures &f = m_content_features[i];
+		f.liquid_alternative_flowing_id =
+				getId(f.liquid_alternative_flowing);
+		f.liquid_alternative_source_id =
+				getId(f.liquid_alternative_source);
+	}
 }
 
 

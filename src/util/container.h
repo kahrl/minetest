@@ -28,6 +28,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include <list>
 #include <vector>
 #include <map>
+#include <set>
 
 /*
 	Queue with unique values with fast checking of value existence
@@ -36,8 +37,10 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 template<typename Value>
 class UniqueQueue
 {
+	typedef std::list<Value> ValueList;
+	typedef std::set<Value> ValueSet;
 public:
-	
+
 	/*
 		Does nothing if value is already queued.
 		Return value:
@@ -46,34 +49,36 @@ public:
 	*/
 	bool push_back(Value value)
 	{
-		// Check if already exists
-		if(m_map.find(value) != m_map.end())
-			return false;
+		std::pair<typename ValueSet::iterator, bool>
+				insert_result = m_set.insert(value);
 
-		// Add
-		m_map[value] = 0;
-		m_list.push_back(value);
-		
-		return true;
+		if (insert_result.second) {
+			// Insertion took place (value didn't already exist)
+			m_list.push_back(value);
+			return true;
+		} else {
+			// Didn't already exist
+			return false;
+		}
 	}
 
 	Value pop_front()
 	{
-		typename std::list<Value>::iterator i = m_list.begin();
+		typename ValueList::iterator i = m_list.begin();
 		Value value = *i;
-		m_map.erase(value);
+		m_set.erase(value);
 		m_list.erase(i);
 		return value;
 	}
 
 	u32 size()
 	{
-		return m_map.size();
+		return m_set.size();
 	}
 
 private:
-	std::map<Value, u8> m_map;
-	std::list<Value> m_list;
+	ValueSet m_set;
+	ValueList m_list;
 };
 
 #if 1
