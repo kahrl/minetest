@@ -7,6 +7,8 @@
 
 -- Initialize some very basic things
 function core.debug(...) core.log(table.concat({...}, "\t")) end
+print = core.print -- Override native print and use terminal if that's turned on
+core.print = nil -- don't pollute our namespace
 math.randomseed(os.time())
 os.setlocale("C", "numeric")
 minetest = core
