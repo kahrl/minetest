@@ -598,6 +598,7 @@ void Server::AsyncRunStep(bool initial_step)
 		Listen to the admin chat, if available
 	*/
 	if (m_admin_chat) {
+		MutexAutoLock lock(m_env_mutex);
 		while (!m_admin_chat->command_queue.empty()) {
 			ChatEvent *evt = m_admin_chat->command_queue.pop_frontNoEx();
 			if (evt->type == CET_NICK_ADD) {
