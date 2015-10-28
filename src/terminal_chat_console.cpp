@@ -84,7 +84,7 @@ void *TerminalChatConsole::run()
 
 	// Inform the server of our nick
 	m_chat_interface->command_queue.push_back(
-		ChatEvent(CET_NICK_ADD, m_nick, L""));
+		ChatEventNick(CET_NICK_ADD, m_nick));
 
 	init_of_curses();
 
@@ -123,7 +123,7 @@ void TerminalChatConsole::typeChatMessage(const std::wstring &m)
 
 	// Send to server
 	m_chat_interface->command_queue.push_back(
-		ChatEvent(CET_CHAT, m_nick, m));
+		ChatEventChat(m_nick, m));
 
 	// Print if its a command (gets eaten by server otherwise)
 	if (m[0] == L'/') {
@@ -300,20 +300,21 @@ void TerminalChatConsole::step(int ch)
 		ChatEvent evt = m_chat_interface->outgoing_queue.pop_frontNoEx();
 		switch (evt.type) {
 			case CET_NICK_REMOVE:
-				m_nicks.remove(evt.nick);
+				m_nicks.remove(((ChatEventNick &)evt).nick);
 				break;
 			case CET_NICK_ADD:
-				m_nicks.push_back(evt.nick);
+				m_nicks.push_back(((ChatEventNick &)evt).nick);
 				break;
 			case CET_CHAT:
 				complete_redraw_needed = true;
 				// This is only used for direct replies from commands
 				// or for lua's print() functionality
-				m_chat_backend.addMessage(L"", evt.evt_msg);
+				m_chat_backend.addMessage(L"", ((ChatEventChat &)evt).evt_msg);
 				break;
 			case CET_TIME_INFO:
-				m_game_time = evt.game_time;
-				m_time_of_day = evt.time;
+				ChatEventTimeInfo &tevt = (ChatEventTimeInfo &)evt;
+				m_game_time = tevt.game_time;
+				m_time_of_day = tevt.time;
 		};
 	}
 	while (!m_log_output.queue.empty()) {

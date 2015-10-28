@@ -602,7 +602,7 @@ void Server::AsyncRunStep(bool initial_step)
 			ChatEvent evt = m_admin_chat->command_queue.pop_frontNoEx();
 			if (evt.type == CET_NICK_ADD) {
 				// The terminal informed us of its nick choice
-				m_admin_nick = evt.nick;
+				m_admin_nick = ((ChatEventNick *)&evt)->nick;
 				// Check that an account exists, and inform that an account has to be created
 				// TODO: remove this if its decided to go with a more "tolerant" auth handler
 				/*if (!m_script->getAuth(m_admin_nick, NULL, NULL)) {
@@ -613,12 +613,12 @@ void Server::AsyncRunStep(bool initial_step)
 				}//*/
 			} else {
 				assert(evt.type == CET_CHAT);
-				handleAdminChat(evt);
+				handleAdminChat((ChatEventChat &)evt);
 			}
 		}
 	}
 	m_admin_chat->outgoing_queue.push_back(
-		ChatEvent(CET_TIME_INFO, m_env->getGameTime(), m_env->getTimeOfDay()));
+		ChatEventTimeInfo(m_env->getGameTime(), m_env->getTimeOfDay()));
 
 	/*
 		Do background stuff
@@ -1157,7 +1157,7 @@ PlayerSAO* Server::StageTwoClientInit(u16 peer_id)
 			SendChatMessage(PEER_ID_INEXISTENT,message);
 			if (m_admin_chat)
 				m_admin_chat->outgoing_queue.push_back(
-					ChatEvent(CET_NICK_ADD, name, L""));
+					ChatEventNick(CET_NICK_ADD, name));
 		}
 	}
 	Address addr = getPeerAddress(player->peer_id);
@@ -1489,7 +1489,7 @@ void Server::printToConsoleOnly(const std::string &text)
 {
 	if (m_admin_chat) {
 		m_admin_chat->outgoing_queue.push_back(
-			ChatEvent(CET_CHAT, "", utf8_to_wide(text)));
+			ChatEventChat("", utf8_to_wide(text)));
 	} else {
 		std::cout << text;
 	}
@@ -2734,7 +2734,7 @@ void Server::DeleteClient(u16 peer_id, ClientDeletionReason reason)
 						<< " List of players: " << os.str() << std::endl;
 				if (m_admin_chat)
 					m_admin_chat->outgoing_queue.push_back(
-						ChatEvent(CET_NICK_REMOVE, name, L""));
+						ChatEventNick(CET_NICK_REMOVE, name));
 			}
 		}
 		{
@@ -2829,7 +2829,7 @@ bool Server::handleChat(const std::string &name, const std::wstring &wname,
 	return false;
 }
 
-void Server::handleAdminChat(const ChatEvent &evt)
+void Server::handleAdminChat(const ChatEventChat &evt)
 {
 	std::string name = evt.nick;
 	std::wstring wname = utf8_to_wide(name);
@@ -2839,7 +2839,7 @@ void Server::handleAdminChat(const ChatEvent &evt)
 
 	// If asked to send answer to sender
 	if (handleChat(name, wname, wmessage, answer)) {
-		m_admin_chat->outgoing_queue.push_back(ChatEvent(CET_CHAT, "", answer));
+		m_admin_chat->outgoing_queue.push_back(ChatEventChat("", answer));
 	}
 }
 
@@ -2975,7 +2975,7 @@ void Server::notifyPlayer(const char *name, const std::wstring &msg)
 		return;
 
 	if (m_admin_nick == name && !m_admin_nick.empty()) {
-		m_admin_chat->outgoing_queue.push_back(ChatEvent(CET_CHAT, "", msg));
+		m_admin_chat->outgoing_queue.push_back(ChatEventChat("", msg));
 	}
 
 	Player *player = m_env->getPlayer(name);

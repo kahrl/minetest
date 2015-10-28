@@ -478,7 +478,7 @@ private:
 	bool handleChat(const std::string &name, const std::wstring &wname,
 		const std::wstring &wmessage, std::wstring &answer_to_sender,
 		u16 peer_id_to_avoid_sending = PEER_ID_INEXISTENT);
-	void handleAdminChat(const ChatEvent &evt);
+	void handleAdminChat(const ChatEventChat &evt);
 
 	v3f findSpawnPos();
 

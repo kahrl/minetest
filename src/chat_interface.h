@@ -27,34 +27,51 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 enum ChatEventType {
 	CET_CHAT,
-	//CET_LOG,
 	CET_NICK_ADD,
 	CET_NICK_REMOVE,
 	CET_TIME_INFO,
 };
 
-struct ChatEvent {
-	ChatEvent(ChatEventType a_type,
-		const std::string &a_nick,
-		const std::wstring &an_evt_msg) :
-	type(a_type),
-	nick(a_nick),
-	evt_msg(an_evt_msg)
-	{}
-	ChatEvent(ChatEventType a_type,
+class ChatEvent {
+protected:
+	ChatEvent(ChatEventType a_type) { type = a_type; }
+public:
+	ChatEventType type;
+};
+
+struct ChatEventTimeInfo : public ChatEvent {
+	ChatEventTimeInfo(
 		u64 a_game_time,
 		u32 a_time) :
-	type(a_type),
+	ChatEvent(CET_TIME_INFO),
 	game_time(a_game_time),
 	time(a_time)
 	{}
 
-	ChatEventType type;
-	std::string nick; // CET_CHAT, CET_NICK_ADD, CET_NICK_REMOVE
-	std::wstring evt_msg; // CET_CHAT
-	u64 game_time; // CET_TIME_INFO
-	u32 time; // CET_TIME_INFO
-	//std::string log_msg; // CET_LOG
+	u64 game_time;
+	u32 time;
+};
+
+struct ChatEventNick : public ChatEvent {
+	ChatEventNick(ChatEventType a_type,
+		const std::string &a_nick) :
+	ChatEvent(a_type), // one of CET_NICK_ADD, CET_NICK_REMOVE
+	nick(a_nick)
+	{}
+
+	std::string nick;
+};
+
+struct ChatEventChat : public ChatEvent {
+	ChatEventChat(const std::string &a_nick,
+		const std::wstring &an_evt_msg) :
+	ChatEvent(CET_CHAT),
+	nick(a_nick),
+	evt_msg(an_evt_msg)
+	{}
+
+	std::string nick;
+	std::wstring evt_msg;
 };
 
 struct ChatInterface {
