@@ -33,9 +33,12 @@ TerminalChatConsole g_term_console;
 #include "ncursesw/curses.h"
 
 // Some functions to make drawing etc position independent
-static void reformat_backend(ChatBackend *backend, int rows, int cols)
+static bool reformat_backend(ChatBackend *backend, int rows, int cols)
 {
+	if (rows < 2)
+		return false;
 	backend->reformat(cols, rows - 2);
+	return true;
 }
 
 static void move_for_backend(int row, int col)
@@ -57,7 +60,7 @@ void TerminalChatConsole::initOfCurses()
 	set_escdelay(25);
 
 	getmaxyx(stdscr, m_rows, m_cols);
-	reformat_backend(&m_chat_backend, m_rows, m_cols);
+	m_can_draw_text = reformat_backend(&m_chat_backend, m_rows, m_cols);
 }
 
 void TerminalChatConsole::deInitOfCurses()
@@ -354,7 +357,7 @@ void TerminalChatConsole::step(int ch)
 	if (xn != m_cols || yn != m_rows) {
 		m_cols = xn;
 		m_rows = yn;
-		reformat_backend(&m_chat_backend, m_rows, m_cols);
+		m_can_draw_text = reformat_backend(&m_chat_backend, m_rows, m_cols);
 		complete_redraw_needed = true;
 	}
 
@@ -374,7 +377,7 @@ void TerminalChatConsole::step(int ch)
 			m_game_time, hours, minutes);
 
 	// draw text
-	if (complete_redraw_needed)
+	if (complete_redraw_needed && m_can_draw_text)
 		draw_text();
 
 	// draw prompt

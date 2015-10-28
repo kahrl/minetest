@@ -103,6 +103,7 @@ private:
 
 	int m_cols;
 	int m_rows;
+	bool m_can_draw_text;
 
 	bool *m_kill_requested;
 	ChatBackend m_chat_backend;
