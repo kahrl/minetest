@@ -65,11 +65,6 @@ void TerminalChatConsole::deInitOfCurses()
 	endwin();
 }
 
-void TerminalChatConsole::resize()
-{
-	m_chat_backend.reformat(m_cols, m_rows - 2);
-}
-
 void *TerminalChatConsole::run()
 {
 	BEGIN_DEBUG_EXCEPTION_HANDLER

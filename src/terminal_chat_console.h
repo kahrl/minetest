@@ -86,7 +86,6 @@ private:
 	void deInitOfCurses();
 
 	void draw_text();
-	void resize();
 
 	void typeChatMessage(const std::wstring &m);
 
