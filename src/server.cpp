@@ -2760,7 +2760,7 @@ void Server::UpdateCrafting(Player* player)
 	plist->changeItem(0, preview);
 }
 
-std::wstring *Server::handleChat(const std::string &name, const std::wstring &wname,
+std::wstring Server::handleChat(const std::string &name, const std::wstring &wname,
 	const std::wstring &wmessage, u16 peer_id_to_avoid_sending)
 {
 	// If something goes wrong, this player is to blame
@@ -2777,7 +2777,7 @@ std::wstring *Server::handleChat(const std::string &name, const std::wstring &wn
 		wide_to_utf8(wmessage));
 	// If script ate the message, don't proceed
 	if (ate)
-		return NULL;
+		return "";
 
 	// Commands are implemented in Lua, so only catch invalid
 	// commands that were not "eaten" and send an error back
@@ -2801,9 +2801,7 @@ std::wstring *Server::handleChat(const std::string &name, const std::wstring &wn
 			Tell calling method to send the message to sender
 		*/
 		if (!broadcast_line) {
-			std::wstring *answer_to_sender = new std::wstring;
-			*answer_to_sender = line;
-			return answer_to_sender;
+			return line;
 		} else {
 			/*
 				Send the message to others
@@ -2819,7 +2817,7 @@ std::wstring *Server::handleChat(const std::string &name, const std::wstring &wn
 			}
 		}
 	}
-	return NULL;
+	return "";
 }
 
 void Server::handleAdminChat(const ChatEventChat *evt)
@@ -2828,13 +2826,12 @@ void Server::handleAdminChat(const ChatEventChat *evt)
 	std::wstring wname = utf8_to_wide(name);
 	std::wstring wmessage = evt->evt_msg;
 
-	std::wstring *answer;
+	std::wstring answer = handleChat(name, wname, wmessage);
 
 	// If asked to send answer to sender
-	if ((answer = handleChat(name, wname, wmessage))) {
+	if (!answer.empty()) {
 		m_admin_chat->outgoing_queue.push_back(new ChatEventChat("", *answer));
 	}
-	delete answer;
 }
 
 RemoteClient* Server::getClient(u16 peer_id, ClientState state_min)
