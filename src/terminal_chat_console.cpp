@@ -371,7 +371,7 @@ void TerminalChatConsole::step(int ch)
 	printw(g_version_hash);
 
 	u32 minutes = m_time_of_day % 1000;
-	u32 hours = (m_time_of_day - minutes) / 1000;
+	u32 hours = m_time_of_day / 1000;
 	minutes = (float)minutes / 1000 * 60;
 
 	if (m_game_time)
