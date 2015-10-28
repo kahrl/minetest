@@ -118,11 +118,6 @@ core.builtin_auth_handler = {
 		elseif is_admin then
 			-- create a fake password entry so that nobody logs in as the admin
 			auth_table_entry = { password = "!", last_login = os.time() }
-			-- TODO remove
-			--[[core.log("warning", "You haven't set up an account.\n" ..
-					"Please log in as '" .. name
-					.. ", so that nobody else can set up an account "
-					.. "with your name and log in as you.")]]
 		-- If not in authentication table, and no admin, return nil
 		else
 			return nil

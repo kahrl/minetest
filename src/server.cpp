@@ -603,14 +603,6 @@ void Server::AsyncRunStep(bool initial_step)
 			if (evt.type == CET_NICK_ADD) {
 				// The terminal informed us of its nick choice
 				m_admin_nick = ((ChatEventNick *)&evt)->nick;
-				// Check that an account exists, and inform that an account has to be created
-				// TODO: remove this if its decided to go with a more "tolerant" auth handler
-				/*if (!m_script->getAuth(m_admin_nick, NULL, NULL)) {
-					errorstream << "You haven't set up an account." << std::endl
-						<< "Please log in using the client as '"
-						<< m_admin_nick << "' with a secure password." << std::endl
-						<< "Until then, you can't execute admin tasks via the console either." << std::endl;
-				}//*/
 			} else {
 				assert(evt.type == CET_CHAT);
 				handleAdminChat((ChatEventChat &)evt);
