@@ -117,19 +117,19 @@ void *TerminalChatConsole::run()
 	return NULL;
 }
 
-void TerminalChatConsole::typeChatMessage(const std::wstring &m)
+void TerminalChatConsole::typeChatMessage(const std::wstring &msg)
 {
 	// Discard empty line
-	if (m == L"")
+	if (msg.empty())
 		return;
 
 	// Send to server
 	m_chat_interface->command_queue.push_back(
-		ChatEventChat(m_nick, m));
+		ChatEventChat(m_nick, msg));
 
 	// Print if its a command (gets eaten by server otherwise)
-	if (m[0] == L'/') {
-		m_chat_backend.addMessage(L"", (std::wstring)L"Issued command: " + m);
+	if (msg[0] == L'/') {
+		m_chat_backend.addMessage(L"", (std::wstring)L"Issued command: " + msg);
 	}
 }
 
