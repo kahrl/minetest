@@ -62,9 +62,9 @@ public:
 	{}
 
 	void setup(
-			ChatInterface *iface,
-			bool *kill_requested,
-			const std::string &nick)
+		ChatInterface *iface,
+		bool *kill_requested,
+		const std::string &nick)
 	{
 		m_nick = nick;
 		m_kill_requested = kill_requested;

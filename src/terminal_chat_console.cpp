@@ -26,6 +26,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "util/numeric.h"
 #include "util/string.h"
 
+TerminalChatConsole g_term_console;
+
 // include this last to avoid any conflicts
 // (likes to set macros to common names, conflicting various stuff)
 #include "ncursesw/curses.h"
@@ -428,7 +430,5 @@ void TerminalChatConsole::stopAndWaitforThread()
 	stop();
 	wait();
 }
-
-TerminalChatConsole g_term_console;
 
 #endif
