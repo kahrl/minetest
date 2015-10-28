@@ -2763,7 +2763,6 @@ void Server::UpdateCrafting(Player* player)
 std::wstring *Server::handleChat(const std::string &name, const std::wstring &wname,
 	const std::wstring &wmessage, u16 peer_id_to_avoid_sending)
 {
-	std::wstring *answer_to_sender = NULL;
 	// If something goes wrong, this player is to blame
 	RollbackScopeActor rollback_scope(m_rollback,
 		std::string("player:") + name);
@@ -2778,7 +2777,7 @@ std::wstring *Server::handleChat(const std::string &name, const std::wstring &wn
 		wide_to_utf8(wmessage));
 	// If script ate the message, don't proceed
 	if (ate)
-		return false;
+		return NULL;
 
 	// Commands are implemented in Lua, so only catch invalid
 	// commands that were not "eaten" and send an error back
@@ -2802,8 +2801,9 @@ std::wstring *Server::handleChat(const std::string &name, const std::wstring &wn
 			Tell calling method to send the message to sender
 		*/
 		if (!broadcast_line) {
-			&answer_to_sender = line;
-			return true;
+			std::wstring *answer_to_sender = new std::wstring;
+			*answer_to_sender = line;
+			return answer_to_sender;
 		} else {
 			/*
 				Send the message to others
@@ -2819,7 +2819,7 @@ std::wstring *Server::handleChat(const std::string &name, const std::wstring &wn
 			}
 		}
 	}
-	return false;
+	return NULL;
 }
 
 void Server::handleAdminChat(const ChatEventChat *evt)
@@ -2831,7 +2831,7 @@ void Server::handleAdminChat(const ChatEventChat *evt)
 	std::wstring *answer;
 
 	// If asked to send answer to sender
-	if (answer = handleChat(name, wname, wmessage)) {
+	if ((answer = handleChat(name, wname, wmessage))) {
 		m_admin_chat->outgoing_queue.push_back(new ChatEventChat("", *answer));
 	}
 	delete answer;
