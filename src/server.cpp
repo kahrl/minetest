@@ -2777,7 +2777,7 @@ std::wstring Server::handleChat(const std::string &name, const std::wstring &wna
 		wide_to_utf8(wmessage));
 	// If script ate the message, don't proceed
 	if (ate)
-		return "";
+		return std::string("");
 
 	// Commands are implemented in Lua, so only catch invalid
 	// commands that were not "eaten" and send an error back
@@ -2817,7 +2817,7 @@ std::wstring Server::handleChat(const std::string &name, const std::wstring &wna
 			}
 		}
 	}
-	return "";
+	return std::string("");
 }
 
 void Server::handleAdminChat(const ChatEventChat *evt)
