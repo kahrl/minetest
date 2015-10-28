@@ -317,6 +317,7 @@ void TerminalChatConsole::step(int ch)
 				m_game_time = tevt->game_time;
 				m_time_of_day = tevt->time;
 		};
+		delete evt;
 	}
 	while (!m_log_output.queue.empty()) {
 		complete_redraw_needed = true;
