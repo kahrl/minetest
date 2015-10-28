@@ -2801,7 +2801,7 @@ bool Server::handleChat(const std::string &name, const std::wstring &wname,
 		/*
 			Tell calling method to send the message to sender
 		*/
-		if (broadcast_line) {
+		if (!broadcast_line) {
 			answer_to_sender = line;
 			return true;
 		} else {
