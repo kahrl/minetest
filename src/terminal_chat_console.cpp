@@ -86,18 +86,23 @@ void *TerminalChatConsole::run()
 	m_chat_interface->command_queue.push_back(
 		new ChatEventNick(CET_NICK_ADD, m_nick));
 
-	initOfCurses();
-
-	while (!stopRequested()) {
-
-		int ch = getch();
-		if (stopRequested())
-			break;
-
-		step(ch);
+	class CursesInitHelper {
+		CursesInitHelper() { initOfCurses(); }
+		~CursesInitHelper() { deinitOfCurses(); }
 	}
 
-	deInitOfCurses();
+	{
+		CursesInitHelper helper;
+
+		while (!stopRequested()) {
+
+			int ch = getch();
+			if (stopRequested())
+				break;
+
+			step(ch);
+		}
+	}
 
 	if (m_kill_requested)
 		*m_kill_requested = true;
