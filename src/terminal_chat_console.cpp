@@ -311,6 +311,9 @@ void TerminalChatConsole::step(int ch)
 				// or for lua's print() functionality
 				m_chat_backend.addMessage(L"", evt.evt_msg);
 				break;
+			case CET_TIME_INFO:
+				m_game_time = evt.game_time;
+				m_time_of_day = evt.time;
 		};
 	}
 	while (!m_log_output.queue.empty()) {
@@ -362,8 +365,14 @@ void TerminalChatConsole::step(int ch)
 	printw(PROJECT_NAME_C);
 	printw(" ");
 	printw(g_version_hash);
-	printw(" ");
-	printw(itos(porting::getTimeS()).c_str());
+
+	u32 minutes = m_time_of_day % 1000;
+	u32 hours = (m_time_of_day - minutes) / 1000;
+	minutes = (float)minutes / 1000 * 60;
+
+	if (m_game_time)
+		printw(" | Game %d Time of day %02d:%02d ",
+			m_game_time, hours, minutes);
 
 	// draw text
 	if (complete_redraw_needed)

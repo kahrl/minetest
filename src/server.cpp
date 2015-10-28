@@ -617,6 +617,8 @@ void Server::AsyncRunStep(bool initial_step)
 			}
 		}
 	}
+	m_admin_chat->outgoing_queue.push_back(
+		ChatEvent(CET_TIME_INFO, m_env->getGameTime(), m_env->getTimeOfDay()));
 
 	/*
 		Do background stuff

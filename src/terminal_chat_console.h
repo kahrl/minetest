@@ -56,7 +56,9 @@ public:
 		m_log_level(LL_ACTION),
 		m_utf8_bytes_to_wait(0),
 		m_kill_requested(NULL),
-		m_esc_mode(false)
+		m_esc_mode(false),
+		m_game_time(0),
+		m_time_of_day(0)
 	{}
 
 	void setup(
@@ -107,6 +109,9 @@ private:
 	TermLogOutput m_log_output;
 
 	bool m_esc_mode;
+
+	u64 m_game_time;
+	u32 m_time_of_day;
 };
 
 extern TerminalChatConsole g_term_console;
