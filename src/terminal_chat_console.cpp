@@ -86,14 +86,6 @@ void *TerminalChatConsole::run()
 	m_chat_interface->command_queue.push_back(
 		new ChatEventNick(CET_NICK_ADD, m_nick));
 
-	struct CursesInitHelper {
-		TerminalChatConsole *cons;
-		CursesInitHelper(TerminalChatConsole * a_console)
-			: cons(a_console)
-		{ cons->initOfCurses(); }
-		~CursesInitHelper() { cons->deInitOfCurses(); }
-	};
-
 	{
 		// Ensures that curses is deinitialized even on an exception being thrown
 		CursesInitHelper helper(this);

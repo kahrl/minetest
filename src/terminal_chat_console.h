@@ -93,6 +93,15 @@ private:
 
 	void step(int ch);
 
+	// Used to ensure the deinitialisation is always called.
+	struct CursesInitHelper {
+		TerminalChatConsole *cons;
+		CursesInitHelper(TerminalChatConsole * a_console)
+			: cons(a_console)
+		{ cons->initOfCurses(); }
+		~CursesInitHelper() { cons->deInitOfCurses(); }
+	};
+
 	int m_log_level;
 	std::string m_nick;
 
