@@ -75,8 +75,8 @@ struct ChatEventChat : public ChatEvent {
 };
 
 struct ChatInterface {
-	MutexedQueue<ChatEvent> command_queue; // chat backend --> server
-	MutexedQueue<ChatEvent> outgoing_queue; // server --> chat backend
+	MutexedQueue<ChatEvent *> command_queue; // chat backend --> server
+	MutexedQueue<ChatEvent *> outgoing_queue; // server --> chat backend
 };
 
 #endif
