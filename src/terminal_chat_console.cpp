@@ -89,7 +89,7 @@ void *TerminalChatConsole::run()
 	class CursesInitHelper {
 		CursesInitHelper() { initOfCurses(); }
 		~CursesInitHelper() { deinitOfCurses(); }
-	}
+	};
 
 	{
 		// Ensures that curses is deinitialized even on an exception being thrown
