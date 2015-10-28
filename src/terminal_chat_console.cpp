@@ -141,6 +141,11 @@ void TerminalChatConsole::handleInput(int ch, bool &complete_redraw_needed)
 		complete_redraw_needed = true;
 	}//*/
 
+	// All the key codes below are compatible to xterm
+	// Only add new ones if you have tried them there,
+	// to ensure compatibility with not just xterm but the wide
+	// range of terminals that are compatible to xterm.
+
 	switch (ch) {
 		case ERR: // no input
 			break;
