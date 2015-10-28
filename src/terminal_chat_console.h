@@ -82,8 +82,8 @@ private:
 	// these have stupid names so that nobody missclassifies them
 	// as curses functions. Oh, curses has stupid names too?
 	// Well, at least it was worth a try...
-	void init_of_curses();
-	void deinit_of_curses();
+	void initOfCurses();
+	void deInitOfCurses();
 
 	void draw_text();
 	void resize();

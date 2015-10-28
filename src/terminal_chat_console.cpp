@@ -41,7 +41,7 @@ static void move_for_backend(int row, int col)
 	move(row + 1, col);
 }
 
-void TerminalChatConsole::init_of_curses()
+void TerminalChatConsole::initOfCurses()
 {
 	initscr();
 	cbreak(); //raw();
@@ -58,7 +58,7 @@ void TerminalChatConsole::init_of_curses()
 	reformat_backend(&m_chat_backend, m_rows, m_cols);
 }
 
-void TerminalChatConsole::deinit_of_curses()
+void TerminalChatConsole::deInitOfCurses()
 {
 	endwin();
 }
@@ -86,7 +86,7 @@ void *TerminalChatConsole::run()
 	m_chat_interface->command_queue.push_back(
 		ChatEventNick(CET_NICK_ADD, m_nick));
 
-	init_of_curses();
+	initOfCurses();
 
 	while (!stopRequested()) {
 
@@ -97,7 +97,7 @@ void *TerminalChatConsole::run()
 		step(ch);
 	}
 
-	deinit_of_curses();
+	deInitOfCurses();
 
 	if (m_kill_requested)
 		*m_kill_requested = true;
