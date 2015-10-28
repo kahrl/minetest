@@ -2819,10 +2819,10 @@ bool Server::handleChat(const std::string &name, const std::wstring &wname,
 
 			std::vector<u16> clients = m_clients.getClientIDs();
 
-			for (std::vector<u16>::iterator i = clients.begin();
-				i != clients.end(); ++i) {
-					if (*i != peer_id_to_avoid_sending)
-						SendChatMessage(*i, line);
+			for (u16 i = 0; i < clients.size(); i++) {
+				u16 cid = clients[i];
+				if (cid != peer_id_to_avoid_sending)
+					SendChatMessage(cid, line);
 			}
 		}
 	}
