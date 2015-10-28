@@ -51,8 +51,7 @@ int ModApiServer::l_print(lua_State *L)
 	NO_MAP_LOCK_REQUIRED;
 	std::string text;
 	text = luaL_checkstring(L, 1);
-	Server *server = getServer(L);
-	server->printToConsoleOnly(text);
+	getServer(L)->printToConsoleOnly(text);
 	return 0;
 }
 
