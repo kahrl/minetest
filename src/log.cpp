@@ -183,9 +183,10 @@ void Logger::addOutput(ILogOutput *out, LogLevel lev)
 
 void Logger::addOutputMasked(ILogOutput *out, LogLevelMask mask)
 {
-	for (size_t i = 0; i < LL_MAX; i++)
+	for (size_t i = 0; i < LL_MAX; i++) {
 		if (mask & LOGLEVEL_TO_MASKLEVEL(i))
 			m_outputs[i].push_back(out);
+	}
 }
 
 void Logger::addOutputMaxLevel(ILogOutput *out, LogLevel lev)

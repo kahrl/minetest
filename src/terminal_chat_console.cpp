@@ -92,6 +92,7 @@ void *TerminalChatConsole::run()
 	}
 
 	{
+		// Ensures that curses is deinitialized even on an exception being thrown
 		CursesInitHelper helper;
 
 		while (!stopRequested()) {
