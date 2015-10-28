@@ -2830,7 +2830,7 @@ void Server::handleAdminChat(const ChatEventChat *evt)
 
 	// If asked to send answer to sender
 	if (!answer.empty()) {
-		m_admin_chat->outgoing_queue.push_back(new ChatEventChat("", *answer));
+		m_admin_chat->outgoing_queue.push_back(new ChatEventChat("", answer));
 	}
 }
 
