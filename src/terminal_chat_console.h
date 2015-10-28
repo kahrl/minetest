@@ -101,7 +101,10 @@ private:
 	std::string m_pending_utf8_bytes;
 
 	std::list<std::string> m_nicks;
-	int m_cols, m_rows;
+
+	int m_cols;
+	int m_rows;
+
 	bool *m_kill_requested;
 	ChatBackend m_chat_backend;
 	ChatInterface *m_chat_interface;
