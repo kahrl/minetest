@@ -1063,11 +1063,12 @@ void Server::handleCommand_ChatMessage(NetworkPacket* pkt)
 	std::string name = player->getName();
 	std::wstring wname = narrow_to_wide(name);
 
-	std::wstring answer_to_sender;
-	if (handleChat(name, wname, message, answer_to_sender, pkt->getPeerId())) {
+	std::wstring *answer_to_sender;
+	if (answer_to_sender = handleChat(name, wname, message, pkt->getPeerId())) {
 		// Send the answer to sender
 		SendChatMessage(pkt->getPeerId(), answer_to_sender);
 	}
+	delete answer_to_sender;
 }
 
 void Server::handleCommand_Damage(NetworkPacket* pkt)

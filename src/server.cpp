@@ -2760,10 +2760,10 @@ void Server::UpdateCrafting(Player* player)
 	plist->changeItem(0, preview);
 }
 
-bool Server::handleChat(const std::string &name, const std::wstring &wname,
-	const std::wstring &wmessage, std::wstring &answer_to_sender,
-	u16 peer_id_to_avoid_sending)
+std::wstring *Server::handleChat(const std::string &name, const std::wstring &wname,
+	const std::wstring &wmessage, u16 peer_id_to_avoid_sending)
 {
+	std::wstring *answer_to_sender = NULL;
 	// If something goes wrong, this player is to blame
 	RollbackScopeActor rollback_scope(m_rollback,
 		std::string("player:") + name);
@@ -2802,7 +2802,7 @@ bool Server::handleChat(const std::string &name, const std::wstring &wname,
 			Tell calling method to send the message to sender
 		*/
 		if (!broadcast_line) {
-			answer_to_sender = line;
+			&answer_to_sender = line;
 			return true;
 		} else {
 			/*
@@ -2828,12 +2828,13 @@ void Server::handleAdminChat(const ChatEventChat *evt)
 	std::wstring wname = utf8_to_wide(name);
 	std::wstring wmessage = evt->evt_msg;
 
-	std::wstring answer;
+	std::wstring *answer;
 
 	// If asked to send answer to sender
-	if (handleChat(name, wname, wmessage, answer)) {
-		m_admin_chat->outgoing_queue.push_back(new ChatEventChat("", answer));
+	if (answer = handleChat(name, wname, wmessage)) {
+		m_admin_chat->outgoing_queue.push_back(new ChatEventChat("", *answer));
 	}
+	delete answer;
 }
 
 RemoteClient* Server::getClient(u16 peer_id, ClientState state_min)

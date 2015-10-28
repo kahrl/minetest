@@ -474,9 +474,9 @@ private:
 	void DeleteClient(u16 peer_id, ClientDeletionReason reason);
 	void UpdateCrafting(Player *player);
 
-	// If this returns true, answer_to_sender should be sent to sender of wmessage
-	bool handleChat(const std::string &name, const std::wstring &wname,
-		const std::wstring &wmessage, std::wstring &answer_to_sender,
+	// This returns the answer to the sender of wmessage, or NULL if there is none
+	std::wstring *handleChat(const std::string &name, const std::wstring &wname,
+		const std::wstring &wmessage,
 		u16 peer_id_to_avoid_sending = PEER_ID_INEXISTENT);
 	void handleAdminChat(const ChatEventChat *evt);
 
