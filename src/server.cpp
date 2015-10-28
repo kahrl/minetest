@@ -2777,8 +2777,8 @@ bool Server::handleChat(const std::string &name, const std::wstring &wname,
 
 	// Line to send
 	std::wstring line;
-	// Whether to send to the player that sent the line, or to all players
-	bool send_to_sender_only = false;
+	// Whether to send line to the player that sent the message, or to all players
+	bool broadcast_line = true;
 
 	// Run script hook
 	bool ate = m_script->on_chat_message(name,
@@ -2791,7 +2791,7 @@ bool Server::handleChat(const std::string &name, const std::wstring &wname,
 	// commands that were not "eaten" and send an error back
 	if (wmessage[0] == L'/') {
 		std::wstring wcmd = wmessage.substr(1);
-		send_to_sender_only = true;
+		broadcast_line = false;
 		if (wcmd.length() == 0)
 			line += L"-!- Empty command";
 		else
@@ -2808,7 +2808,7 @@ bool Server::handleChat(const std::string &name, const std::wstring &wname,
 		/*
 			Tell calling method to send the message to sender
 		*/
-		if (send_to_sender_only) {
+		if (broadcast_line) {
 			answer_to_sender = line;
 			return true;
 		} else {

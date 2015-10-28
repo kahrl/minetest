@@ -162,7 +162,8 @@ void TerminalChatConsole::handleInput(int ch, bool &complete_redraw_needed)
 			std::wstring text = m_chat_backend.getPrompt().submit();
 			typeChatMessage(text);
 			break;
-		} case KEY_UP:
+		}
+		case KEY_UP:
 			m_chat_backend.getPrompt().historyPrev();
 			break;
 		case KEY_DOWN:
