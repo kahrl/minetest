@@ -598,17 +598,19 @@ void Server::AsyncRunStep(bool initial_step)
 		Listen to the admin chat, if available
 	*/
 	if (m_admin_chat) {
-		MutexAutoLock lock(m_env_mutex);
-		while (!m_admin_chat->command_queue.empty()) {
-			ChatEvent *evt = m_admin_chat->command_queue.pop_frontNoEx();
-			if (evt->type == CET_NICK_ADD) {
-				// The terminal informed us of its nick choice
-				m_admin_nick = ((ChatEventNick *)evt)->nick;
-			} else {
-				assert(evt->type == CET_CHAT);
-				handleAdminChat((ChatEventChat *)evt);
+		if (!m_admin_chat->command_queue.empty()) {
+			MutexAutoLock lock(m_env_mutex);
+			while (!m_admin_chat->command_queue.empty()) {
+				ChatEvent *evt = m_admin_chat->command_queue.pop_frontNoEx();
+				if (evt->type == CET_NICK_ADD) {
+					// The terminal informed us of its nick choice
+					m_admin_nick = ((ChatEventNick *)evt)->nick;
+				} else {
+					assert(evt->type == CET_CHAT);
+					handleAdminChat((ChatEventChat *)evt);
+				}
+				delete evt;
 			}
-			delete evt;
 		}
 	}
 	m_admin_chat->outgoing_queue.push_back(
