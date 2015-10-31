@@ -2798,26 +2798,23 @@ std::wstring Server::handleChat(const std::string &name, const std::wstring &wna
 		line += wmessage;
 	}
 
-
-	if (line != L"") {
+	/*
+		Tell calling method to send the message to sender
+	*/
+	if (!broadcast_line) {
+		return line;
+	} else {
 		/*
-			Tell calling method to send the message to sender
+			Send the message to others
 		*/
-		if (!broadcast_line) {
-			return line;
-		} else {
-			/*
-				Send the message to others
-			*/
-			actionstream << "CHAT: " << wide_to_narrow(line) << std::endl;
+		actionstream << "CHAT: " << wide_to_narrow(line) << std::endl;
 
-			std::vector<u16> clients = m_clients.getClientIDs();
+		std::vector<u16> clients = m_clients.getClientIDs();
 
-			for (u16 i = 0; i < clients.size(); i++) {
-				u16 cid = clients[i];
-				if (cid != peer_id_to_avoid_sending)
-					SendChatMessage(cid, line);
-			}
+		for (u16 i = 0; i < clients.size(); i++) {
+			u16 cid = clients[i];
+			if (cid != peer_id_to_avoid_sending)
+				SendChatMessage(cid, line);
 		}
 	}
 	return L"";
