@@ -612,9 +612,9 @@ void Server::AsyncRunStep(bool initial_step)
 				delete evt;
 			}
 		}
+		m_admin_chat->outgoing_queue.push_back(
+			new ChatEventTimeInfo(m_env->getGameTime(), m_env->getTimeOfDay()));
 	}
-	m_admin_chat->outgoing_queue.push_back(
-		new ChatEventTimeInfo(m_env->getGameTime(), m_env->getTimeOfDay()));
 
 	/*
 		Do background stuff
