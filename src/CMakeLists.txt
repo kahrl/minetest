@@ -165,7 +165,7 @@ set(USE_CURSES FALSE)
 
 if(ENABLE_NCURSES)
 	find_library(NCURSES_LIBRARY ncursesw)
-	find_path(NCURSES_INCLUDE_DIR ncursesw/curses.h)
+	find_path(NCURSES_INCLUDE_DIR cursesw.h)
 	if(NCURSES_LIBRARY AND NCURSES_INCLUDE_DIR)
 		set(USE_CURSES TRUE)
 		message(STATUS "ncurses console enabled.")

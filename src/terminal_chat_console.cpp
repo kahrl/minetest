@@ -30,7 +30,7 @@ TerminalChatConsole g_term_console;
 
 // include this last to avoid any conflicts
 // (likes to set macros to common names, conflicting various stuff)
-#include "ncursesw/curses.h"
+#include "cursesw.h"
 
 // Some functions to make drawing etc position independent
 static bool reformat_backend(ChatBackend *backend, int rows, int cols)
