@@ -832,10 +832,18 @@ static bool run_dedicated_server(const GameParams &game_params, const Settings &
 		name_ok = name_ok && string_allowed(admin_nick, PLAYERNAME_ALLOWED_CHARS);
 
 		if (!name_ok) {
-			errorstream << "No valid name given for admin. "
-				<< "Please check your minetest.conf that it "
-				<< "contains a 'name = ' to your main admin account."
-				<< std::endl;
+			if (admin_nick.empty()) {
+				errorstream << "No name given for admin. "
+					<< "Please check your minetest.conf that it "
+					<< "contains a 'name = ' to your main admin account."
+					<< std::endl;
+			} else {
+				errorstream << "Name for admin '"
+					<< admin_nick << "' is not valid. "
+					<< "Please check that it only contains allowed characters. "
+					<< "Valid characters are: " << PLAYERNAME_ALLOWED_CHARS_USER_EXPL
+					<< std::endl;
+			}
 			return false;
 		}
 		ChatInterface iface;
