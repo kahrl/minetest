@@ -30,7 +30,19 @@ TerminalChatConsole g_term_console;
 
 // include this last to avoid any conflicts
 // (likes to set macros to common names, conflicting various stuff)
-#include "cursesw.h"
+#if CURSES_HAVE_NCURSESW_NCURSES_H
+#include <ncursesw/ncurses.h>
+#elif CURSES_HAVE_NCURSESW_CURSES_H
+#include <ncursesw/curses.h>
+#elif CURSES_HAVE_CURSES_H
+#include <curses.h>
+#elif CURSES_HAVE_NCURSES_H
+#include <ncurses.h>
+#elif CURSES_HAVE_NCURSES_NCURSES_H
+#include <ncurses/ncurses.h>
+#elif CURSES_HAVE_NCURSES_CURSES_H
+#include <ncurses/curses.h>
+#endif
 
 // Some functions to make drawing etc position independent
 static bool reformat_backend(ChatBackend *backend, int rows, int cols)
