@@ -404,7 +404,7 @@ void TerminalChatConsole::step(int ch)
 		// esc prompt
 		move(m_rows - 1, 0);
 		clrtoeol();
-		printw("[ESC] Toogle ESC mode |"
+		printw("[ESC] Toggle ESC mode |"
 			" [CTRL+C] Shut down |"
 			" (L) in-, (l) decrease loglevel %s",
 			Logger::getLevelLabel((LogLevel) m_log_level).c_str());
