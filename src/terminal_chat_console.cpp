@@ -225,6 +225,7 @@ void TerminalChatConsole::handleInput(int ch, bool &complete_redraw_needed)
 			break;
 		case KEY_BACKSPACE:
 		case '\b':
+		case 127:
 			// Backspace pressed
 			// delete character to the left
 			m_chat_backend.getPrompt().cursorOperation(
